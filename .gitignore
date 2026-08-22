@@ -16,3 +16,7 @@ Thumbs.db
 *.log
 .idea/
 .vscode/
+
+# 环境生成产物
+.screenshots/
+.trae-html-share-packages/
