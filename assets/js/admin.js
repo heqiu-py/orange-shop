@@ -371,7 +371,7 @@
     const custs = Store.getCustomers();
     const totalRev = custs.reduce((s, c) => s + c.total, 0);
     $("#viewRoot").innerHTML = `
-      <div class="main-head"><div><h1>客户管理</h1><div class="sub">按手机号归集，共 ${custs.length} 位客户</div></div>
+      <div class="main-head"><div><h1>客户管理</h1><div class="sub">按账号归集，共 ${custs.length} 位客户</div></div>
         <div style="display:flex;gap:10px">
         <button class="btn btn-light btn-sm" id="exportCust">⤓ 导出客户</button>
       </div></div>
@@ -436,7 +436,7 @@
         <div class="tbl-scroll">
           <table class="tbl">
             <thead><tr>
-              <th>代理姓名</th><th>手机号</th><th>推荐码</th><th>推荐链接</th>
+              <th>代理姓名</th><th>账号</th><th>推荐码</th><th>推荐链接</th>
               <th>订单数</th><th>成交额</th><th>状态</th><th>操作</th>
             </tr></thead>
             <tbody>
@@ -481,7 +481,7 @@
       <div class="modal-body">
         ${isEdit ? `<div class="detail-row"><div class="d-k">推荐码</div><div class="d-v"><span class="tag tag-green">${agent.referralCode}</span></div></div>` : ""}
         <div class="field" style="margin-top:8px"><label>代理姓名 <span class="req">*</span></label><input id="agentName" placeholder="请输入姓名" value="${isEdit ? esc(agent.name) : ""}" /></div>
-        <div class="field"><label>手机号 <span class="req">*</span></label><input id="agentPhone" type="tel" maxlength="11" placeholder="请输入手机号" value="${isEdit ? agent.phone : ""}" ${isEdit ? "" : ""} /></div>
+        <div class="field"><label>账号 <span class="req">*</span></label><input id="agentPhone" type="text" maxlength="11" autocomplete="off" placeholder="英文或数字，最多11位" value="${isEdit ? agent.phone : ""}" /></div>
         <div class="field"><label>${isEdit ? "新密码（留空不改）" : "密码"} ${isEdit ? "" : '<span class="req">*</span>'}</label><input id="agentPassword" type="password" placeholder="${isEdit ? "留空不修改密码" : "至少6位"}" /></div>
       </div>
       <div class="modal-foot">
@@ -494,8 +494,8 @@
       const name = $("#agentName").value.trim();
       const phone = $("#agentPhone").value.trim();
       const password = $("#agentPassword").value;
-      if (!name || !phone) { toast("请填写姓名和手机号", "warn"); return; }
-      if (!/^1\d{10}$/.test(phone)) { toast("手机号格式不正确", "warn"); return; }
+      if (!name || !phone) { toast("请填写姓名和账号", "warn"); return; }
+      if (!/^[a-zA-Z0-9]{1,11}$/.test(phone)) { toast("账号只能含英文或数字，最多11位", "warn"); return; }
       if (!isEdit && password.length < 6) { toast("密码至少6位", "warn"); return; }
       try {
         if (isEdit) {
@@ -530,7 +530,7 @@
       <div class="modal-head"><h3>代理详情</h3><button class="close-x" data-close>×</button></div>
       <div class="modal-body">
         <div class="detail-row"><div class="d-k">姓名</div><div class="d-v">${esc(agent.name)}</div></div>
-        <div class="detail-row"><div class="d-k">手机号</div><div class="d-v">${agent.phone}</div></div>
+        <div class="detail-row"><div class="d-k">账号</div><div class="d-v">${agent.phone}</div></div>
         <div class="detail-row"><div class="d-k">推荐码</div><div class="d-v"><span class="tag tag-green">${agent.referralCode}</span></div></div>
         <div class="detail-row"><div class="d-k">推荐链接</div><div class="d-v"><a href="${agent.referralLink}" target="_blank" style="color:var(--green);font-size:13px;word-break:break-all">${esc(fullLink)}</a></div></div>
         <div class="detail-row"><div class="d-k">状态</div><div class="d-v"><span class="status status-${agent.status === "active" ? "paid" : "cancel"}">${agent.status === "active" ? "正常" : "已停用"}</span></div></div>

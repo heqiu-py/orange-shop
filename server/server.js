@@ -70,7 +70,7 @@ app.get("/api/auth/captcha", (req, res) => {
 app.post("/api/auth/register", async (req, res) => {
   const { phone, password, name, referralCode, captchaId, captchaCode } = req.body || {};
   if (!phone || !password) return res.status(400).json({ error: "请填写手机号和密码" });
-  if (!/^1\d{10}$/.test(phone)) return res.status(400).json({ error: "手机号格式不正确" });
+  if (!/^[a-zA-Z0-9]{1,11}$/.test(phone)) return res.status(400).json({ error: "账号只能含英文或数字，最多11位" });
   if (password.length < 6) return res.status(400).json({ error: "密码至少6位" });
 
   // 频率限制
@@ -109,14 +109,14 @@ app.post("/api/auth/register", async (req, res) => {
   res.json({ user: safe, token });
 });
 
-/* 顾客登录（手机号） */
+/* 顾客登录 */
 app.post("/api/auth/login", async (req, res) => {
   const { phone, password } = req.body || {};
-  if (!phone || !password) return res.status(400).json({ error: "请填写手机号和密码" });
+  if (!phone || !password) return res.status(400).json({ error: "请填写账号和密码" });
 
   const user = await DB.findUserByPhone(phone);
-  if (!user || user.status === "deleted") return res.status(401).json({ error: "手机号或密码不正确" });
-  if (!auth.verifyPassword(password, user.passwordHash)) return res.status(401).json({ error: "手机号或密码不正确" });
+  if (!user || user.status === "deleted") return res.status(401).json({ error: "账号或密码不正确" });
+  if (!auth.verifyPassword(password, user.passwordHash)) return res.status(401).json({ error: "账号或密码不正确" });
 
   const token = await auth.createSession(user.id, Date.now() + auth.SESSION_TTL);
   auth.setAuthCookie(res, token);
@@ -127,11 +127,11 @@ app.post("/api/auth/login", async (req, res) => {
 /* 管理员/代理登录 */
 app.post("/api/auth/admin-login", async (req, res) => {
   const { phone, password } = req.body || {};
-  if (!phone || !password) return res.status(400).json({ error: "请填写手机号和密码" });
+  if (!phone || !password) return res.status(400).json({ error: "请填写账号和密码" });
 
   const user = await DB.findUserByPhone(phone);
-  if (!user || user.status === "deleted") return res.status(401).json({ error: "手机号或密码不正确" });
-  if (!auth.verifyPassword(password, user.passwordHash)) return res.status(401).json({ error: "手机号或密码不正确" });
+  if (!user || user.status === "deleted") return res.status(401).json({ error: "账号或密码不正确" });
+  if (!auth.verifyPassword(password, user.passwordHash)) return res.status(401).json({ error: "账号或密码不正确" });
   if (user.role !== "admin" && user.role !== "agent") return res.status(403).json({ error: "无管理员权限" });
 
   const token = await auth.createSession(user.id, Date.now() + auth.SESSION_TTL);
@@ -172,11 +172,11 @@ app.get("/api/referral/:code", async (req, res) => {
 /* 创建代理 */
 app.post("/api/admin/agents", auth.requireAdmin, async (req, res) => {
   const { name, phone, password } = req.body || {};
-  if (!name || !phone || !password) return res.status(400).json({ error: "请填写姓名、手机号和密码" });
-  if (!/^1\d{10}$/.test(phone)) return res.status(400).json({ error: "手机号格式不正确" });
+  if (!name || !phone || !password) return res.status(400).json({ error: "请填写姓名、账号和密码" });
+  if (!/^[a-zA-Z0-9]{1,11}$/.test(phone)) return res.status(400).json({ error: "账号只能含英文或数字，最多11位" });
 
   const existing = await DB.findUserByPhone(phone);
-  if (existing && existing.status !== "deleted") return res.status(409).json({ error: "该手机号已注册" });
+  if (existing && existing.status !== "deleted") return res.status(409).json({ error: "该账号已注册" });
 
   const agent = {
     id: auth.genUserId("agent"),
@@ -217,7 +217,7 @@ app.patch("/api/admin/agents/:id", auth.requireAdmin, async (req, res) => {
   const { name, phone, password, status } = req.body || {};
   const patch = {};
   if (name) patch.name = name;
-  if (phone) { if (!/^1\d{10}$/.test(phone)) return res.status(400).json({ error: "手机号格式不正确" }); patch.phone = phone; }
+  if (phone) { if (!/^[a-zA-Z0-9]{1,11}$/.test(phone)) return res.status(400).json({ error: "账号只能含英文或数字，最多11位" }); patch.phone = phone; }
   if (password) { if (password.length < 6) return res.status(400).json({ error: "密码至少6位" }); patch.passwordHash = auth.hashPassword(password); }
   if (status) patch.status = status;
   const u = await DB.updateUser(req.params.id, patch);
@@ -307,7 +307,7 @@ app.post("/api/orders", async (req, res) => {
   if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: "购物车为空" });
   if (!customer || !customer.name || !customer.phone || !customer.province || !customer.address)
     return res.status(400).json({ error: "收货信息不完整" });
-  if (!/^1\d{10}$/.test(customer.phone)) return res.status(400).json({ error: "手机号格式不正确" });
+  if (!/^[a-zA-Z0-9]{1,11}$/.test(customer.phone)) return res.status(400).json({ error: "联系电话只能含英文或数字，最多11位" });
 
   // 推荐追踪：优先用请求体中的 referralCode，其次用登录用户的 agentId
   let agentId = "", agentName = "", refCode = referralCode || "";
