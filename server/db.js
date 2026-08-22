@@ -93,8 +93,10 @@ let pool = null; // PG 连接池（仅 DATABASE_URL 时）
 async function pg() {
   if (pool) return pool;
   const { Pool } = require("pg");
+  // 去掉 channel_binding 参数（Neon 追加的，pg 驱动不需要，可能报错）
+  const connStr = DATABASE_URL.replace(/&?channel_binding=require/, "");
   pool = new Pool({
-    connectionString: DATABASE_URL,
+    connectionString: connStr,
     ssl: { rejectUnauthorized: false } // Neon / Render PG 均需 SSL
   });
   return pool;
