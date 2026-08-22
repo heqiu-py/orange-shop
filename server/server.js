@@ -57,18 +57,33 @@ function filterOrders(orders, f) {
 }
 
 /* ============================================================
-   认证 API（注册 / 登录 / 登出 / 当前用户）
+   认证 API（注册 / 登录 / 登出 / 当前用户 / 验证码）
    ============================================================ */
 
-/* 顾客注册（手机号） */
+/* 获取图形验证码（返回 SVG 图片 + captchaId） */
+app.get("/api/auth/captcha", (req, res) => {
+  const { captchaId, svg } = auth.generateCaptcha();
+  res.json({ captchaId, svg });
+});
+
+/* 顾客注册（手机号 + 图形验证码） */
 app.post("/api/auth/register", async (req, res) => {
-  const { phone, password, name, referralCode } = req.body || {};
+  const { phone, password, name, referralCode, captchaId, captchaCode } = req.body || {};
   if (!phone || !password) return res.status(400).json({ error: "请填写手机号和密码" });
   if (!/^1\d{10}$/.test(phone)) return res.status(400).json({ error: "手机号格式不正确" });
   if (password.length < 6) return res.status(400).json({ error: "密码至少6位" });
 
+  // 频率限制
+  const ip = auth.getClientIP(req);
+  const rl = auth.checkRateLimit(ip);
+  if (!rl.allowed) return res.status(429).json({ error: `操作过于频繁，请 ${rl.remaining} 分钟后再试` });
+
+  // 验证码校验
+  if (!captchaId || !captchaCode) return res.status(400).json({ error: "请输入验证码" });
+  if (!auth.verifyCaptcha(captchaId, captchaCode)) return res.status(400).json({ error: "验证码不正确或已过期，请刷新重试" });
+
   const existing = await DB.findUserByPhone(phone);
-  if (existing && existing.status !== "deleted") return res.status(409).json({ error: "该手机号已注册" });
+  if (existing && existing.status !== "deleted") return res.status(409).json({ error: "该手机号已注册，请直接登录" });
 
   // 解析推荐人
   let agentId = "", agentName = "";

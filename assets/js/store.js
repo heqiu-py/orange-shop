@@ -137,13 +137,16 @@
       cache.user = d.user;
       return d;
     },
-    async register(phone, password, name, referralCode) {
+    async register(phone, password, name, referralCode, captchaId, captchaCode) {
       const d = await http("/api/auth/register", {
         method: "POST",
-        body: JSON.stringify({ phone, password, name, referralCode: referralCode || getReferralCode() })
+        body: JSON.stringify({ phone, password, name, referralCode: referralCode || getReferralCode(), captchaId, captchaCode })
       });
       cache.user = d.user;
       return d;
+    },
+    async getCaptcha() {
+      return await http("/api/auth/captcha");
     },
     async logout() {
       await http("/api/auth/logout", { method: "POST" });
