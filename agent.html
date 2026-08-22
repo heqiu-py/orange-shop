@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>代理仪表盘 · 橙园直供</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/style.css" />
+<style>
+  body { background: var(--bg, #f6f7f5); }
+  .agent-head { background: linear-gradient(135deg, var(--green) 0%, var(--green-700) 100%); color: #fff; padding: 24px 0; }
+  .agent-head .wrap { display: flex; justify-content: space-between; align-items: center; }
+  .agent-head .ah-left { display: flex; align-items: center; gap: 14px; }
+  .agent-head .ah-avatar { width: 48px; height: 48px; border-radius: 50%; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 22px; }
+  .agent-head h1 { font-size: 20px; margin: 0; font-family: var(--font-serif); }
+  .agent-head .ah-sub { font-size: 13px; opacity: 0.8; margin-top: 2px; }
+  .agent-head .ah-right { display: flex; gap: 10px; }
+  .agent-head .ah-right a { color: #fff; text-decoration: none; font-size: 14px; padding: 8px 16px; border: 1px solid rgba(255,255,255,0.3); border-radius: 10px; transition: all .2s; }
+  .agent-head .ah-right a:hover { background: rgba(255,255,255,0.15); }
+
+  .agent-body { max-width: 960px; margin: 0 auto; padding: 24px 20px 60px; }
+  .agent-section { margin-bottom: 32px; }
+  .agent-section h2 { font-size: 18px; font-weight: 700; margin: 0 0 16px; color: var(--ink); }
+
+  .referral-card { background: #fff; border-radius: 16px; padding: 24px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); display: flex; gap: 24px; align-items: center; }
+  .referral-link-box { flex: 1; }
+  .referral-link-label { font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+  .referral-link-row { display: flex; gap: 10px; }
+  .referral-link-row input { flex: 1; padding: 12px 16px; border: 1.5px solid var(--line); border-radius: 10px; font-size: 14px; background: var(--bg); color: var(--green); font-weight: 600; }
+  .referral-link-row input:focus { outline: none; border-color: var(--green); }
+  .copy-btn { padding: 12px 20px; border: none; border-radius: 10px; background: var(--green); color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all .2s; }
+  .copy-btn:hover { background: var(--green-700); }
+  .referral-qr { width: 120px; height: 120px; border-radius: 12px; overflow: hidden; flex-shrink: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; }
+  .referral-qr img { width: 100%; height: 100%; }
+  .referral-tips { margin-top: 12px; font-size: 13px; color: var(--muted); line-height: 1.6; }
+
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; }
+  .stat-card { background: #fff; border-radius: 16px; padding: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+  .stat-card .s-top { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .stat-card .s-ic { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+  .stat-card .s-ic.green { background: var(--green-50); color: var(--green); }
+  .stat-card .s-ic.orange { background: var(--orange-50); color: var(--orange-700); }
+  .stat-card .s-ic.blue { background: #e8f0fe; color: #1a73e8; }
+  .stat-card .s-ic.grey { background: #f0f0f0; color: #666; }
+  .stat-card .s-lbl { font-size: 13px; color: var(--muted); }
+  .stat-card .s-num { font-size: 28px; font-weight: 700; color: var(--ink); margin-top: 4px; }
+  .stat-card .s-foot { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+  .order-table { background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+  .order-table table { width: 100%; border-collapse: collapse; }
+  .order-table th { text-align: left; padding: 12px 16px; font-size: 13px; color: var(--muted); background: var(--bg); font-weight: 500; border-bottom: 1px solid var(--line); }
+  .order-table td { padding: 12px 16px; font-size: 14px; border-bottom: 1px solid var(--line); }
+  .order-table tr:last-child td { border-bottom: none; }
+  .order-table .t-amt { font-weight: 700; color: var(--green); }
+  .order-table .t-name { font-weight: 600; }
+  .order-table .muted { color: var(--muted); font-size: 12px; }
+
+  @media (max-width: 640px) {
+    .referral-card { flex-direction: column; }
+    .referral-qr { width: 100%; height: 180px; }
+    .stat-grid { grid-template-columns: repeat(2, 1fr); }
+    .order-table { overflow-x: auto; }
+    .order-table table { min-width: 600px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- 代理头部 -->
+<div class="agent-head">
+  <div class="wrap">
+    <div class="ah-left">
+      <div class="ah-avatar">🍊</div>
+      <div>
+        <h1 id="agentName">加载中…</h1>
+        <div class="ah-sub" id="agentSub">代理仪表盘</div>
+      </div>
+    </div>
+    <div class="ah-right">
+      <a href="index.html">逛店铺</a>
+      <a href="javascript:void(0)" id="logoutBtn">退出</a>
+    </div>
+  </div>
+</div>
+
+<div class="agent-body">
+  <div id="agentContent">
+    <div style="text-align:center;padding:60px"><div style="font-size:48px">🍊</div><p style="color:var(--muted);margin-top:12px">正在加载仪表盘…</p></div>
+  </div>
+</div>
+
+<!-- toast -->
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script src="assets/js/store.js"></script>
+<script>
+(function (global) {
+  "use strict";
+
+  const $ = s => document.querySelector(s);
+
+  function toast(msg, type) {
+    const wrap = $("#toastWrap"); if (!wrap) return;
+    const el = document.createElement("div");
+    el.className = "toast " + (type || "ok");
+    el.textContent = msg;
+    wrap.appendChild(el);
+    setTimeout(() => { el.style.opacity = "0"; el.style.transition = "opacity .3s"; }, 1800);
+    setTimeout(() => el.remove(), 2200);
+  }
+
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+
+  const AgentPage = {
+    async init() {
+      // 检查登录状态
+      try {
+        const user = await Store.Auth.me();
+        if (!user) {
+          location.href = "login.html?redirect=agent.html";
+          return;
+        }
+        if (user.role === "admin") {
+          location.href = "admin.html";
+          return;
+        }
+        if (user.role !== "agent") {
+          location.href = "index.html";
+          return;
+        }
+      } catch (e) {
+        location.href = "login.html?redirect=agent.html";
+        return;
+      }
+
+      // 加载仪表盘数据
+      let data;
+      try {
+        data = await Store.AgentSelf.dashboard();
+      } catch (e) {
+        $("#agentContent").innerHTML = `<div style="text-align:center;padding:60px"><div style="font-size:48px">⚠</div><p style="color:var(--muted);margin-top:12px">加载失败，请刷新重试</p></div>`;
+        return;
+      }
+
+      this.render(data);
+      this.bindEvents();
+    },
+
+    render(data) {
+      const { agent, stats, recentOrders } = data;
+      const baseUrl = location.origin + location.pathname.replace(/agent\.html.*/, "");
+      const fullLink = baseUrl + "index.html?ref=" + agent.referralCode;
+      const qrUrl = "/api/qrcode?text=" + encodeURIComponent(fullLink);
+
+      $("#agentName").textContent = agent.name;
+      $("#agentSub").textContent = "推荐码 " + agent.referralCode + " · " + (agent.phone || "");
+
+      $("#agentContent").innerHTML = `
+        <div class="agent-section">
+          <h2>我的推荐链接</h2>
+          <div class="referral-card">
+            <div class="referral-link-box">
+              <div class="referral-link-label">分享这个链接给客户，他们下单后自动关联到您</div>
+              <div class="referral-link-row">
+                <input type="text" id="referralLink" value="${esc(fullLink)}" readonly />
+                <button class="copy-btn" id="copyBtn">复制链接</button>
+              </div>
+              <div class="referral-tips">
+                💡 客户通过您的链接进入店铺并下单，订单会自动关联到您。<br>
+                📱 可将链接发到微信群、朋友圈，或截图二维码分享。
+              </div>
+            </div>
+            <div class="referral-qr">
+              <img src="${qrUrl}" alt="推荐二维码" />
+            </div>
+          </div>
+        </div>
+
+        <div class="agent-section">
+          <h2>业绩统计</h2>
+          <div class="stat-grid">
+            <div class="stat-card">
+              <div class="s-top"><div class="s-ic green">▤</div><span class="s-lbl">总订单数</span></div>
+              <div class="s-num">${stats.totalOrders}</div>
+              <div class="s-foot">全部历史订单</div>
+            </div>
+            <div class="stat-card">
+              <div class="s-top"><div class="s-ic orange">¥</div><span class="s-lbl">总成交额</span></div>
+              <div class="s-num">${Store.money(stats.totalRevenue)}</div>
+              <div class="s-foot">仅统计已支付订单</div>
+            </div>
+            <div class="stat-card">
+              <div class="s-top"><div class="s-ic blue">📅</div><span class="s-lbl">今日订单</span></div>
+              <div class="s-num">${stats.todayOrders}</div>
+              <div class="s-foot">今日成交 ${Store.money(stats.todayRevenue)}</div>
+            </div>
+            <div class="stat-card">
+              <div class="s-top"><div class="s-ic grey">⤳</div><span class="s-lbl">待发货</span></div>
+              <div class="s-num">${stats.pendingShip}</div>
+              <div class="s-foot">已支付待发货</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="agent-section">
+          <h2>最近订单</h2>
+          <div class="order-table">
+            <table>
+              <thead>
+                <tr><th>订单号</th><th>下单时间</th><th>客户</th><th>商品</th><th>金额</th><th>状态</th></tr>
+              </thead>
+              <tbody>
+                ${recentOrders.length ? recentOrders.map(o => `
+                  <tr>
+                    <td><strong>${o.id}</strong></td>
+                    <td class="muted">${Store.fmtTime(o.createdAt)}</td>
+                    <td class="t-name">${esc(o.customer.name)}<br><span class="muted">${o.customer.phone}</span></td>
+                    <td>${o.items.map(i => esc(i.name)).join(" + ")}</td>
+                    <td class="t-amt">${Store.money(o.totalAmount)}</td>
+                    <td><span class="status status-${o.shipStatus}">${Store.shipLabel(o.shipStatus)}</span></td>
+                  </tr>
+                `).join("") : `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--muted)">暂无订单，快把推荐链接分享给客户吧 🍊</td></tr>`}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    },
+
+    bindEvents() {
+      // 复制链接
+      const copyBtn = $("#copyBtn");
+      if (copyBtn) {
+        copyBtn.addEventListener("click", async () => {
+          const inp = $("#referralLink");
+          try {
+            await navigator.clipboard.writeText(inp.value);
+            copyBtn.textContent = "已复制 ✓";
+            setTimeout(() => copyBtn.textContent = "复制链接", 2000);
+          } catch (e) {
+            inp.select();
+            document.execCommand("copy");
+            copyBtn.textContent = "已复制 ✓";
+            setTimeout(() => copyBtn.textContent = "复制链接", 2000);
+          }
+        });
+      }
+
+      // 退出登录
+      $("#logoutBtn").addEventListener("click", async () => {
+        await Store.Auth.logout();
+        location.href = "index.html";
+      });
+    },
+  };
+
+  global.AgentPage = AgentPage;
+  AgentPage.init();
+})(window);
+</script>
+</body>
+</html>

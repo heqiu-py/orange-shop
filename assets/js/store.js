@@ -1,5 +1,5 @@
 /* ============================================================
-   脂橙庄园 · 数据层 (后端 API)
+   脐橙庄园 · 数据层 (后端 API)
    读取：启动时加载到内存缓存，渲染层同步调用
    写入：异步请求后端，完成后刷新缓存
    购物车仍存 localStorage（客户端购物车）
@@ -9,17 +9,25 @@
 
   /* API 根地址：与前端同源，部署后自动跟随域名 */
   const API = (function () {
-    // 允许通过 ?api= 指定独立后端地址，便于分离部署
     const p = new URLSearchParams(location.search).get("api");
     return p ? p.replace(/\/$/, "") : "";
   })();
 
+  /* ---------- HTTP 封装 ---------- */
   async function http(path, opts) {
     opts = opts || {};
     const res = await fetch(API + path, {
       ...opts,
+      credentials: "same-origin", // 携带 Cookie（认证令牌）
       headers: { "Content-Type": "application/json", ...(opts.headers || {}) }
     });
+    if (res.status === 401) {
+      // 未登录，跳转登录页（仅管理端）
+      if (location.pathname.includes("admin") || location.pathname.includes("agent")) {
+        location.href = "login.html?redirect=" + encodeURIComponent(location.pathname + location.search);
+        return;
+      }
+    }
     if (!res.ok) {
       let msg = "请求失败 (" + res.status + ")";
       try { const j = await res.json(); if (j.error) msg = j.error; } catch (e) {}
@@ -30,7 +38,11 @@
   }
 
   /* ---------- 内存缓存 ---------- */
-  const cache = { products: [], orders: [], inventory: [], customers: [], provinces: [], sources: [], logistics: [] };
+  const cache = {
+    products: [], orders: [], inventory: [], customers: [],
+    provinces: [], sources: [], logistics: [],
+    user: null, agents: [], agentDashboard: null,
+  };
 
   async function refresh(what) {
     if (what === "products" || !cache.products.length) { const d = await http("/api/products"); cache.products = d.products; }
@@ -39,8 +51,58 @@
     if (what === "customers" || what === "all") { const d = await http("/api/customers"); cache.customers = d.customers; }
   }
 
-  /* ---------- 启动加载 ---------- */
+  /* ---------- 推荐码追踪 ---------- */
+  function getReferralCode() {
+    // 优先 URL 参数 ?ref=XXXX
+    const urlRef = new URLSearchParams(location.search).get("ref");
+    if (urlRef) { localStorage.setItem("orange_ref", urlRef); return urlRef; }
+    // 其次 localStorage（跨页面保持）
+    return localStorage.getItem("orange_ref") || "";
+  }
+
+  function clearReferralCode() { localStorage.removeItem("orange_ref"); }
+
+  /* ---------- 顾客端启动（仅加载商品+常量） ---------- */
+  async function initCustomer() {
+    const [p, cs] = await Promise.all([
+      http("/api/products"),
+      http("/api/constants").catch(() => ({ provinces: [], sources: [], logistics: [] }))
+    ]);
+    cache.products = p.products;
+    cache.provinces = cs.provinces || [];
+    cache.sources = cs.sources || [];
+    cache.logistics = cs.logistics || [];
+    // 检查登录状态
+    try { const me = await http("/api/auth/me"); cache.user = me.user; } catch (e) {}
+    // 解析推荐人
+    const refCode = getReferralCode();
+    if (refCode) {
+      try {
+        const r = await http("/api/referral/" + encodeURIComponent(refCode));
+        cache.referralAgent = r.agent;
+      } catch (e) { /* 无效推荐码，忽略 */ }
+    }
+  }
+
+  /* ---------- 管理端启动（加载全部数据，需登录） ---------- */
   async function init() {
+    // 先检查登录状态
+    try {
+      const me = await http("/api/auth/me");
+      cache.user = me.user;
+    } catch (e) {
+      location.href = "login.html?redirect=" + encodeURIComponent(location.pathname + location.search);
+      return;
+    }
+    if (!cache.user) {
+      location.href = "login.html?redirect=" + encodeURIComponent(location.pathname + location.search);
+      return;
+    }
+    // 代理登录后只能看自己的仪表盘
+    if (cache.user.role === "agent") {
+      location.href = "agent.html";
+      return;
+    }
     const [p, inv, ord, cust, cs] = await Promise.all([
       http("/api/products"),
       http("/api/inventory"),
@@ -61,9 +123,92 @@
   const pad = (n, w) => String(n).padStart(w, "0");
   const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
+  /* ============================================================
+     认证 API
+     ============================================================ */
+  const Auth = {
+    async login(phone, password) {
+      const d = await http("/api/auth/login", { method: "POST", body: JSON.stringify({ phone, password }) });
+      cache.user = d.user;
+      return d;
+    },
+    async adminLogin(phone, password) {
+      const d = await http("/api/auth/admin-login", { method: "POST", body: JSON.stringify({ phone, password }) });
+      cache.user = d.user;
+      return d;
+    },
+    async register(phone, password, name, referralCode) {
+      const d = await http("/api/auth/register", {
+        method: "POST",
+        body: JSON.stringify({ phone, password, name, referralCode: referralCode || getReferralCode() })
+      });
+      cache.user = d.user;
+      return d;
+    },
+    async logout() {
+      await http("/api/auth/logout", { method: "POST" });
+      cache.user = null;
+    },
+    async me() {
+      const d = await http("/api/auth/me");
+      cache.user = d.user;
+      return d.user;
+    },
+    isLoggedIn() { return !!cache.user; },
+    isAdmin() { return cache.user && cache.user.role === "admin"; },
+    isAgent() { return cache.user && cache.user.role === "agent"; },
+    isCustomer() { return cache.user && cache.user.role === "customer"; },
+    getUser() { return cache.user; },
+  };
+
+  /* ============================================================
+     代理管理 API（管理员）
+     ============================================================ */
+  const AgentAdmin = {
+    async list() {
+      const d = await http("/api/admin/agents");
+      cache.agents = d.agents;
+      return d.agents;
+    },
+    async create(name, phone, password) {
+      const d = await http("/api/admin/agents", { method: "POST", body: JSON.stringify({ name, phone, password }) });
+      await this.list(); // 刷新列表
+      return d.agent;
+    },
+    async update(id, patch) {
+      const d = await http("/api/admin/agents/" + encodeURIComponent(id), { method: "PATCH", body: JSON.stringify(patch) });
+      await this.list();
+      return d.agent;
+    },
+    async remove(id) {
+      await http("/api/admin/agents/" + encodeURIComponent(id), { method: "DELETE" });
+      await this.list();
+    },
+    async detail(id) {
+      return await http("/api/admin/agents/" + encodeURIComponent(id));
+    },
+    async users() {
+      const d = await http("/api/admin/users");
+      return d.users;
+    },
+  };
+
+  /* ============================================================
+     代理端 API（代理自己）
+     ============================================================ */
+  const AgentSelf = {
+    async dashboard() {
+      const d = await http("/api/agent/dashboard");
+      cache.agentDashboard = d;
+      return d;
+    },
+  };
+
   /* ---------- 顾客端 API ---------- */
   const api = {
-    init, cache,
+    init, initCustomer, cache, Auth, AgentAdmin, AgentSelf,
+    getReferralCode, clearReferralCode,
+
     get PROVINCES() { return cache.provinces; },
     get SOURCES() { return cache.sources; },
     get LOGISTICS() { return cache.logistics; },
@@ -99,10 +244,11 @@
       const items = cart.map(i => ({ productId: i.productId, name: i.name, spec: i.spec, price: i.price, qty: i.qty }));
       const data = await http("/api/orders", {
         method: "POST",
-        body: JSON.stringify({ items, customer: form, source: form.source, remark: form.remark })
+        body: JSON.stringify({
+          items, customer: form, source: form.source, remark: form.remark,
+          referralCode: getReferralCode(),
+        })
       });
-      // 下单后刷新缓存
-      await refresh("orders"); await refresh("inventory"); await refresh("customers");
       this.clearCart();
       return data.order;
     },

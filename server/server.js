@@ -7,16 +7,28 @@ const express = require("express");
 const path = require("path");
 const QRCode = require("qrcode");
 const { DB } = require("./db");
+const auth = require("./auth");
 
 const app = express();
 const PORT = process.env.PORT || 8000;
 const STATIC_ROOT = path.join(__dirname, ".."); // /workspace
 
 app.use(express.json());
+app.use(auth.cookieParser);
 
 /* 简单访问日志 */
 app.use((req, res, next) => {
   if (req.path.startsWith("/api")) console.log(`${new Date().toISOString()} ${req.method} ${req.path}`);
+  next();
+});
+
+/* 注入当前用户到 req（不拦截，可选） */
+app.use(async (req, res, next) => {
+  const token = auth.getToken ? auth.getToken(req) : null;
+  if (token) {
+    const user = await auth.getSessionUser(token);
+    if (user) req.user = user;
+  }
   next();
 });
 
@@ -45,6 +57,215 @@ function filterOrders(orders, f) {
 }
 
 /* ============================================================
+   认证 API（注册 / 登录 / 登出 / 当前用户）
+   ============================================================ */
+
+/* 顾客注册（手机号） */
+app.post("/api/auth/register", async (req, res) => {
+  const { phone, password, name, referralCode } = req.body || {};
+  if (!phone || !password) return res.status(400).json({ error: "请填写手机号和密码" });
+  if (!/^1\d{10}$/.test(phone)) return res.status(400).json({ error: "手机号格式不正确" });
+  if (password.length < 6) return res.status(400).json({ error: "密码至少6位" });
+
+  const existing = await DB.findUserByPhone(phone);
+  if (existing && existing.status !== "deleted") return res.status(409).json({ error: "该手机号已注册" });
+
+  // 解析推荐人
+  let agentId = "", agentName = "";
+  if (referralCode) {
+    const agent = await DB.findUserByReferralCode(referralCode);
+    if (agent) { agentId = agent.id; agentName = agent.name; }
+  }
+
+  const user = {
+    id: auth.genUserId("customer"),
+    role: "customer",
+    phone, name: name || ("用户" + phone.slice(-4)),
+    passwordHash: auth.hashPassword(password),
+    referralCode: "",
+    agentId, agentName,
+    status: "active",
+    createdAt: Date.now(),
+  };
+  await DB.createUser(user);
+  const token = await auth.createSession(user.id, Date.now() + auth.SESSION_TTL);
+  auth.setAuthCookie(res, token);
+  const { passwordHash, ...safe } = user;
+  res.json({ user: safe, token });
+});
+
+/* 顾客登录（手机号） */
+app.post("/api/auth/login", async (req, res) => {
+  const { phone, password } = req.body || {};
+  if (!phone || !password) return res.status(400).json({ error: "请填写手机号和密码" });
+
+  const user = await DB.findUserByPhone(phone);
+  if (!user || user.status === "deleted") return res.status(401).json({ error: "手机号或密码不正确" });
+  if (!auth.verifyPassword(password, user.passwordHash)) return res.status(401).json({ error: "手机号或密码不正确" });
+
+  const token = await auth.createSession(user.id, Date.now() + auth.SESSION_TTL);
+  auth.setAuthCookie(res, token);
+  const { passwordHash, ...safe } = user;
+  res.json({ user: safe, token });
+});
+
+/* 管理员/代理登录 */
+app.post("/api/auth/admin-login", async (req, res) => {
+  const { phone, password } = req.body || {};
+  if (!phone || !password) return res.status(400).json({ error: "请填写手机号和密码" });
+
+  const user = await DB.findUserByPhone(phone);
+  if (!user || user.status === "deleted") return res.status(401).json({ error: "手机号或密码不正确" });
+  if (!auth.verifyPassword(password, user.passwordHash)) return res.status(401).json({ error: "手机号或密码不正确" });
+  if (user.role !== "admin" && user.role !== "agent") return res.status(403).json({ error: "无管理员权限" });
+
+  const token = await auth.createSession(user.id, Date.now() + auth.SESSION_TTL);
+  auth.setAuthCookie(res, token);
+  const { passwordHash, ...safe } = user;
+  res.json({ user: safe, token });
+});
+
+/* 登出 */
+app.post("/api/auth/logout", async (req, res) => {
+  const token = auth.getToken(req);
+  if (token) await DB.deleteSession(token);
+  res.clearCookie("auth_token", { path: "/" });
+  res.json({ ok: true });
+});
+
+/* 当前用户信息 */
+app.get("/api/auth/me", async (req, res) => {
+  if (!req.user) return res.json({ user: null });
+  const { passwordHash, ...safe } = req.user;
+  res.json({ user: safe });
+});
+
+/* ============================================================
+   推荐链接解析
+   ============================================================ */
+app.get("/api/referral/:code", async (req, res) => {
+  const agent = await DB.findUserByReferralCode(req.params.code);
+  if (!agent) return res.status(404).json({ error: "推荐码无效" });
+  const { passwordHash, ...safe } = agent;
+  res.json({ agent: safe });
+});
+
+/* ============================================================
+   代理管理 API（仅管理员）
+   ============================================================ */
+
+/* 创建代理 */
+app.post("/api/admin/agents", auth.requireAdmin, async (req, res) => {
+  const { name, phone, password } = req.body || {};
+  if (!name || !phone || !password) return res.status(400).json({ error: "请填写姓名、手机号和密码" });
+  if (!/^1\d{10}$/.test(phone)) return res.status(400).json({ error: "手机号格式不正确" });
+
+  const existing = await DB.findUserByPhone(phone);
+  if (existing && existing.status !== "deleted") return res.status(409).json({ error: "该手机号已注册" });
+
+  const agent = {
+    id: auth.genUserId("agent"),
+    role: "agent",
+    phone, name,
+    passwordHash: auth.hashPassword(password),
+    referralCode: auth.genReferralCode(name),
+    agentId: "", agentName: "",
+    status: "active",
+    createdAt: Date.now(),
+  };
+  await DB.createUser(agent);
+  const { passwordHash, ...safe } = agent;
+  res.json({ agent: safe });
+});
+
+/* 代理列表 */
+app.get("/api/admin/agents", auth.requireAdmin, async (req, res) => {
+  const agents = await DB.listAgents();
+  // 统计每个代理的订单数和金额
+  const stats = await Promise.all(agents.map(async a => {
+    const orders = await DB.getAgentOrders(a.id, a.referralCode);
+    const revenue = orders.reduce((s, o) => s + (o.payStatus === "paid" ? o.totalAmount : 0), 0);
+    return {
+      ...a,
+      orderCount: orders.length,
+      revenue,
+      referralLink: `/index.html?ref=${a.referralCode}`,
+    };
+  }));
+  // 去除 passwordHash
+  const safe = stats.map(a => { const { passwordHash, ...rest } = a; return rest; });
+  res.json({ agents: safe, total: safe.length });
+});
+
+/* 更新代理 */
+app.patch("/api/admin/agents/:id", auth.requireAdmin, async (req, res) => {
+  const { name, phone, password, status } = req.body || {};
+  const patch = {};
+  if (name) patch.name = name;
+  if (phone) { if (!/^1\d{10}$/.test(phone)) return res.status(400).json({ error: "手机号格式不正确" }); patch.phone = phone; }
+  if (password) { if (password.length < 6) return res.status(400).json({ error: "密码至少6位" }); patch.passwordHash = auth.hashPassword(password); }
+  if (status) patch.status = status;
+  const u = await DB.updateUser(req.params.id, patch);
+  if (!u) return res.status(404).json({ error: "代理不存在" });
+  const { passwordHash, ...safe } = u;
+  res.json({ agent: safe });
+});
+
+/* 删除代理（软删除） */
+app.delete("/api/admin/agents/:id", auth.requireAdmin, async (req, res) => {
+  const ok = await DB.deleteUser(req.params.id);
+  if (!ok) return res.status(404).json({ error: "代理不存在" });
+  res.json({ ok: true });
+});
+
+/* 代理详情（含订单统计） */
+app.get("/api/admin/agents/:id", auth.requireAdmin, async (req, res) => {
+  const agent = await DB.findUserById(req.params.id);
+  if (!agent || agent.role !== "agent") return res.status(404).json({ error: "代理不存在" });
+  const orders = await DB.getAgentOrders(agent.id, agent.referralCode);
+  const revenue = orders.reduce((s, o) => s + (o.payStatus === "paid" ? o.totalAmount : 0), 0);
+  const { passwordHash, ...safe } = agent;
+  res.json({
+    agent: { ...safe, referralLink: `/index.html?ref=${agent.referralCode}` },
+    stats: { orderCount: orders.length, revenue, paidOrders: orders.filter(o => o.payStatus === "paid").length },
+    orders: orders.sort((a, b) => b.createdAt - a.createdAt).slice(0, 20),
+  });
+});
+
+/* 用户列表（管理员查看全部顾客） */
+app.get("/api/admin/users", auth.requireAdmin, async (req, res) => {
+  const users = await DB.listAllUsers();
+  const safe = users.map(u => { const { passwordHash, ...rest } = u; return rest; });
+  res.json({ users: safe, total: safe.length });
+});
+
+/* ============================================================
+   代理端 API（代理自己查看）
+   ============================================================ */
+
+/* 代理仪表盘 */
+app.get("/api/agent/dashboard", auth.requireAgent, async (req, res) => {
+  const agent = req.user;
+  const orders = await DB.getAgentOrders(agent.id, agent.referralCode);
+  const revenue = orders.reduce((s, o) => s + (o.payStatus === "paid" ? o.totalAmount : 0), 0);
+  const todayStart = new Date().setHours(0, 0, 0, 0);
+  const todayEnd = new Date().setHours(23, 59, 59, 999);
+  const todayOrders = orders.filter(o => o.createdAt >= todayStart && o.createdAt <= todayEnd);
+  const { passwordHash, ...safe } = agent;
+  res.json({
+    agent: { ...safe, referralLink: `/index.html?ref=${agent.referralCode}` },
+    stats: {
+      totalOrders: orders.length,
+      totalRevenue: revenue,
+      todayOrders: todayOrders.length,
+      todayRevenue: todayOrders.reduce((s, o) => s + (o.payStatus === "paid" ? o.totalAmount : 0), 0),
+      pendingShip: orders.filter(o => o.payStatus === "paid" && o.shipStatus === "pending").length,
+    },
+    recentOrders: orders.sort((a, b) => b.createdAt - a.createdAt).slice(0, 10),
+  });
+});
+
+/* ============================================================
    顾客端 API
    ============================================================ */
 
@@ -67,11 +288,22 @@ app.get("/api/constants", (req, res) => {
 
 /* 下单 */
 app.post("/api/orders", async (req, res) => {
-  const { items, customer, source, remark } = req.body || {};
+  const { items, customer, source, remark, referralCode } = req.body || {};
   if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: "购物车为空" });
   if (!customer || !customer.name || !customer.phone || !customer.province || !customer.address)
     return res.status(400).json({ error: "收货信息不完整" });
   if (!/^1\d{10}$/.test(customer.phone)) return res.status(400).json({ error: "手机号格式不正确" });
+
+  // 推荐追踪：优先用请求体中的 referralCode，其次用登录用户的 agentId
+  let agentId = "", agentName = "", refCode = referralCode || "";
+  if (req.user && req.user.agentId) {
+    agentId = req.user.agentId;
+    agentName = req.user.agentName || "";
+  }
+  if (refCode) {
+    const agent = await DB.findUserByReferralCode(refCode);
+    if (agent) { agentId = agent.id; agentName = agent.name; }
+  }
 
   const orderItems = items.map(i => ({ productId: i.productId, name: i.name, spec: i.spec, price: i.price, qty: i.qty, subtotal: i.price * i.qty }));
   const total = orderItems.reduce((s, i) => s + i.subtotal, 0);
@@ -86,7 +318,8 @@ app.post("/api/orders", async (req, res) => {
     items: orderItems, totalAmount: total, freight: 0,
     payStatus: "pending", shipStatus: "pending",
     shippingNo: "", logisticsCompany: "",
-    source: source || "微信私聊", remark: remark || "", internalNote: ""
+    source: source || "微信私聊", remark: remark || "", internalNote: "",
+    agentId, agentName, referralCode: refCode
   };
   await DB.insertOrder(order);
   res.json({ order });
@@ -96,8 +329,8 @@ app.post("/api/orders", async (req, res) => {
    管理端 API
    ============================================================ */
 
-/* 订单列表（带筛选） */
-app.get("/api/orders", (req, res) => {
+/* 订单列表（带筛选） - 管理端 */
+app.get("/api/orders", auth.requireAdmin, (req, res) => {
   const db = DB.all();
   const f = { date: req.query.date || "", pay: req.query.pay || "", ship: req.query.ship || "", q: req.query.q || "" };
   const list = filterOrders(db.orders, f.ship === "all" ? { ...f, ship: "" } : f);
@@ -105,7 +338,7 @@ app.get("/api/orders", (req, res) => {
 });
 
 /* 导出 CSV（须在 :id 路由之前，避免 "export" 被当作订单号） */
-app.get("/api/orders/export", (req, res) => {
+app.get("/api/orders/export", auth.requireAdmin, (req, res) => {
   const db = DB.all();
   const f = { date: req.query.date || "", pay: req.query.pay || "", ship: req.query.ship === "all" ? "" : (req.query.ship || ""), q: req.query.q || "" };
   const orders = filterOrders(db.orders, f);
@@ -124,7 +357,7 @@ app.get("/api/orders/export", (req, res) => {
 });
 
 /* 订单详情 */
-app.get("/api/orders/:id", (req, res) => {
+app.get("/api/orders/:id", auth.requireAdmin, (req, res) => {
   const db = DB.all();
   const o = db.orders.find(x => x.id === req.params.id);
   if (!o) return res.status(404).json({ error: "订单不存在" });
@@ -132,7 +365,7 @@ app.get("/api/orders/:id", (req, res) => {
 });
 
 /* 更新订单 */
-app.patch("/api/orders/:id", async (req, res) => {
+app.patch("/api/orders/:id", auth.requireAdmin, async (req, res) => {
   const allow = ["payStatus", "shipStatus", "shippingNo", "logisticsCompany", "remark", "internalNote"];
   const patch = {};
   allow.forEach(k => { if (req.body[k] !== undefined) patch[k] = req.body[k]; });
@@ -142,19 +375,19 @@ app.patch("/api/orders/:id", async (req, res) => {
 });
 
 /* 删除订单 */
-app.delete("/api/orders/:id", async (req, res) => {
+app.delete("/api/orders/:id", auth.requireAdmin, async (req, res) => {
   const ok = await DB.deleteOrder(req.params.id);
   if (!ok) return res.status(404).json({ error: "订单不存在" });
   res.json({ ok: true });
 });
 
 /* 库存列表 */
-app.get("/api/inventory", (req, res) => {
+app.get("/api/inventory", auth.requireAdmin, (req, res) => {
   res.json({ inventory: DB.all().inventory });
 });
 
 /* 更新库存 */
-app.patch("/api/inventory/:productId", async (req, res) => {
+app.patch("/api/inventory/:productId", auth.requireAdmin, async (req, res) => {
   const cur = DB.all().inventory.find(v => v.productId === req.params.productId);
   if (!cur) return res.status(404).json({ error: "商品不存在" });
   if (req.body.total === undefined) return res.json({ inventory: cur });
@@ -163,7 +396,7 @@ app.patch("/api/inventory/:productId", async (req, res) => {
 });
 
 /* 客户列表（按手机号归集） */
-app.get("/api/customers", (req, res) => {
+app.get("/api/customers", auth.requireAdmin, (req, res) => {
   const db = DB.all();
   const map = new Map();
   db.orders.forEach(o => {
@@ -177,7 +410,7 @@ app.get("/api/customers", (req, res) => {
 });
 
 /* 概览统计 */
-app.get("/api/stats/overview", (req, res) => {
+app.get("/api/stats/overview", auth.requireAdmin, (req, res) => {
   const db = DB.all();
   const date = req.query.date || fmtDate(Date.now());
   const [s, e] = dayStartEnd(date);
@@ -199,7 +432,7 @@ app.get("/api/stats/overview", (req, res) => {
 });
 
 /* 导出客户 CSV */
-app.get("/api/customers/export", (req, res) => {
+app.get("/api/customers/export", auth.requireAdmin, (req, res) => {
   const db = DB.all();
   const map = new Map();
   db.orders.forEach(o => {
@@ -217,7 +450,7 @@ app.get("/api/customers/export", (req, res) => {
 });
 
 /* 重置示例数据（调试用） */
-app.post("/api/admin/reset", async (req, res) => {
+app.post("/api/admin/reset", auth.requireAdmin, async (req, res) => {
   await DB.reset();
   res.json({ ok: true, msg: "已重置为示例数据" });
 });

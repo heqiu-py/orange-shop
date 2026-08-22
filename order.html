@@ -225,7 +225,7 @@
   // 先加载数据（省/市/来源下拉），再渲染表单
   if(!cart.length){ renderEmpty(); }
   else {
-    Store.init().then(renderForm).catch(()=>{
+    Store.initCustomer().then(renderForm).catch(()=>{
       root.innerHTML = `<div class="empty-state" style="padding:80px"><div class="e-ic">⚠</div>数据加载失败，请稍后刷新</div>`;
     });
   }

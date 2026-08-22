@@ -144,6 +144,7 @@ h1,h2,h3,h4{ line-height:1.25; font-weight:700; letter-spacing:.01em; }
 .nav-links a{ font-size:15px; color:var(--ink-soft); font-weight:500; transition:color .2s; }
 .nav-links a:hover{ color:var(--green); }
 .nav-right{ display:flex; align-items:center; gap:12px; }
+.nav-user{ font-size:14px; font-weight:500; color:var(--ink-soft); }
 .cart-btn{ position:relative; display:flex; align-items:center; gap:8px; padding:0 16px; height:42px; border-radius:var(--r-pill); border:1.5px solid var(--line); background:#fff; font-weight:600; }
 .cart-btn:hover{ border-color:var(--green); }
 .cart-count{ position:absolute; top:-6px; right:-6px; min-width:20px; height:20px; padding:0 5px; border-radius:50%; background:var(--orange); color:#fff; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; }

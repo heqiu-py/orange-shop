@@ -7,9 +7,12 @@
    ============================================================ */
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 
 const DATA_FILE = path.join(__dirname, "data.json");
 const DATABASE_URL = process.env.DATABASE_URL;
+const ADMIN_PHONE = process.env.ADMIN_PHONE || "13800000000";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin123";
 
 /* ---------- 商品/常量（静态） ---------- */
 const PRODUCTS = [
@@ -86,7 +89,7 @@ function seedInventory() {
 /* ============================================================
    存储：双后端统一接口
    ============================================================ */
-const cache = { products: PRODUCTS, orders: [], inventory: [], seq: 1 };
+const cache = { products: PRODUCTS, orders: [], inventory: [], seq: 1, users: [], sessions: [] };
 
 let pool = null; // PG 连接池（仅 DATABASE_URL 时）
 
@@ -107,6 +110,45 @@ async function ensureSchema() {
   await p.query(`CREATE TABLE IF NOT EXISTS orders (id TEXT PRIMARY KEY, data JSONB NOT NULL, created_at BIGINT NOT NULL)`);
   await p.query(`CREATE TABLE IF NOT EXISTS inventory (product_id TEXT PRIMARY KEY, data JSONB NOT NULL)`);
   await p.query(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, val TEXT NOT NULL)`);
+  await p.query(`CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, data JSONB NOT NULL, created_at BIGINT NOT NULL)`);
+  await p.query(`CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at BIGINT NOT NULL)`);
+  await p.query(`CREATE INDEX IF NOT EXISTS idx_users_phone ON users ((data->>'phone'))`);
+  await p.query(`CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions (user_id)`);
+}
+
+/* ---------- 密码哈希 ---------- */
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString("hex");
+  const hash = crypto.scryptSync(password, salt, 64).toString("hex");
+  return salt + ":" + hash;
+}
+
+/* ---------- 用户 ID / 推荐码生成 ---------- */
+function genUserId(role) {
+  const prefix = role === "admin" ? "AD" : role === "agent" ? "AG" : "CU";
+  return prefix + Date.now().toString(36).toUpperCase() + crypto.randomBytes(2).toString("hex").toUpperCase();
+}
+function genReferralCode(name) {
+  const p = (name || "AG").slice(0, 2).toUpperCase().replace(/[^A-Z\u4e00-\u9fa5]/g, "");
+  return (p || "AG") + crypto.randomBytes(3).toString("hex").toUpperCase();
+}
+
+/* ---------- 管理员种子 ---------- */
+async function seedAdmin() {
+  const existing = cache.users.find(u => u.role === "admin");
+  if (existing) return;
+  const admin = {
+    id: genUserId("admin"), role: "admin",
+    phone: ADMIN_PHONE, passwordHash: hashPassword(ADMIN_PASSWORD),
+    name: "超级管理员", referralCode: "", agentId: "",
+    status: "active", createdAt: Date.now(),
+  };
+  cache.users.push(admin);
+  if (DATABASE_URL) {
+    const p = await pg();
+    await p.query("INSERT INTO users (id, data, created_at) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING", [admin.id, JSON.stringify(admin), admin.createdAt]);
+  } else saveJSON();
+  console.log(`  [Auth] 超级管理员已创建（手机: ${ADMIN_PHONE}）`);
 }
 
 /* ---------- 初始化（启动时调用一次） ---------- */
@@ -136,21 +178,30 @@ async function init() {
     // seq
     const { rows: mRows } = await p.query("SELECT val FROM meta WHERE key='seq'");
     cache.seq = mRows.length ? parseInt(mRows[0].val, 10) : 1;
-    console.log(`  [DB] PostgreSQL 已连接：${cache.orders.length} 条订单 / ${cache.inventory.length} 项库存`);
+    // 加载用户
+    const { rows: uRows } = await p.query("SELECT data FROM users ORDER BY (data->>'createdAt')::bigint ASC");
+    cache.users = uRows.map(r => r.data);
+    // 清理过期会话
+    await p.query("DELETE FROM sessions WHERE expires_at < $1", [Date.now()]);
+    console.log(`  [DB] PostgreSQL 已连接：${cache.orders.length} 条订单 / ${cache.inventory.length} 项库存 / ${cache.users.length} 个用户`);
+    await seedAdmin();
   } else {
     // JSON 文件回退
     if (fs.existsSync(DATA_FILE)) {
-      try { const d = JSON.parse(fs.readFileSync(DATA_FILE, "utf8")); cache.orders = d.orders || []; cache.inventory = d.inventory || []; cache.seq = d.seq || 1; }
+      try { const d = JSON.parse(fs.readFileSync(DATA_FILE, "utf8")); cache.orders = d.orders || []; cache.inventory = d.inventory || []; cache.seq = d.seq || 1; cache.users = d.users || []; cache.sessions = d.sessions || []; }
       catch (e) { cache.orders = seedOrders(); cache.inventory = seedInventory(); cache.seq = 1; saveJSON(); }
     } else {
       cache.orders = seedOrders(); cache.inventory = seedInventory(); cache.seq = 1; saveJSON();
     }
-    console.log(`  [DB] JSON 文件模式（预览）：${cache.orders.length} 条订单 / ${cache.inventory.length} 项库存`);
+    // 清理过期会话
+    cache.sessions = cache.sessions.filter(s => s.expiresAt > Date.now());
+    console.log(`  [DB] JSON 文件模式（预览）：${cache.orders.length} 条订单 / ${cache.inventory.length} 项库存 / ${cache.users.length} 个用户`);
+    await seedAdmin();
   }
 }
 
 function saveJSON() {
-  fs.writeFileSync(DATA_FILE, JSON.stringify({ products: PRODUCTS, orders: cache.orders, inventory: cache.inventory, seq: cache.seq }, null, 2));
+  fs.writeFileSync(DATA_FILE, JSON.stringify({ products: PRODUCTS, orders: cache.orders, inventory: cache.inventory, seq: cache.seq, users: cache.users, sessions: cache.sessions }, null, 2));
 }
 
 /* ---------- 读：同步返回缓存 ---------- */
@@ -217,10 +268,113 @@ async function reset() {
   return true;
 }
 
+/* ---------- 用户/会话 CRUD ---------- */
+async function findUserById(id) {
+  return cache.users.find(u => u.id === id) || null;
+}
+
+async function findUserByPhone(phone) {
+  return cache.users.find(u => u.phone === phone && u.status !== "deleted") || null;
+}
+
+async function findUserByReferralCode(code) {
+  return cache.users.find(u => u.referralCode === code && u.role === "agent" && u.status === "active") || null;
+}
+
+async function createUser(user) {
+  cache.users.push(user);
+  if (DATABASE_URL) {
+    const p = await pg();
+    await p.query("INSERT INTO users (id, data, created_at) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING", [user.id, JSON.stringify(user), user.createdAt]);
+  } else saveJSON();
+  return user;
+}
+
+async function updateUser(id, patch) {
+  const u = cache.users.find(x => x.id === id);
+  if (!u) return null;
+  Object.assign(u, patch);
+  if (DATABASE_URL) {
+    const p = await pg();
+    await p.query("UPDATE users SET data = $1 WHERE id = $2", [JSON.stringify(u), id]);
+  } else saveJSON();
+  return u;
+}
+
+async function deleteUser(id) {
+  // 软删除：保留数据但标记状态
+  const u = cache.users.find(x => x.id === id);
+  if (!u) return false;
+  u.status = "deleted";
+  if (DATABASE_URL) {
+    const p = await pg();
+    await p.query("UPDATE users SET data = $1 WHERE id = $2", [JSON.stringify(u), id]);
+  } else saveJSON();
+  return true;
+}
+
+async function listAgents() {
+  return cache.users.filter(u => u.role === "agent" && u.status !== "deleted");
+}
+
+async function listCustomers() {
+  return cache.users.filter(u => u.role === "customer" && u.status !== "deleted");
+}
+
+async function listAllUsers() {
+  return cache.users.filter(u => u.status !== "deleted");
+}
+
+async function createSession(token, userId, expiresAt) {
+  const session = { token, userId, expiresAt, createdAt: Date.now() };
+  cache.sessions.push(session);
+  if (DATABASE_URL) {
+    const p = await pg();
+    await p.query("INSERT INTO sessions (token, user_id, expires_at) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING", [token, userId, expiresAt]);
+  } else saveJSON();
+  return session;
+}
+
+async function getSession(token) {
+  const s = cache.sessions.find(x => x.token === token);
+  if (!s) {
+    if (DATABASE_URL) {
+      const p = await pg();
+      const { rows } = await p.query("SELECT token, user_id, expires_at FROM sessions WHERE token = $1", [token]);
+      if (rows.length) {
+        const session = { token: rows[0].token, userId: rows[0].user_id, expiresAt: parseInt(rows[0].expires_at) };
+        cache.sessions.push(session);
+        return session;
+      }
+    }
+    return null;
+  }
+  return s;
+}
+
+async function deleteSession(token) {
+  const i = cache.sessions.findIndex(s => s.token === token);
+  if (i >= 0) cache.sessions.splice(i, 1);
+  if (DATABASE_URL) {
+    const p = await pg();
+    await p.query("DELETE FROM sessions WHERE token = $1", [token]);
+  } else saveJSON();
+}
+
+/* 获取代理的订单（按 agentId 或 referralCode 关联） */
+async function getAgentOrders(agentId, referralCode) {
+  return cache.orders.filter(o => o.agentId === agentId || (referralCode && o.referralCode === referralCode));
+}
+
 const DB = {
   PRODUCTS, PROVINCES, SOURCES, LOGISTICS,
   init, all,
-  nextSeq, insertOrder, updateOrder, deleteOrder, updateInventory, reset
+  nextSeq, insertOrder, updateOrder, deleteOrder, updateInventory, reset,
+  findUserById, findUserByPhone, findUserByReferralCode,
+  createUser, updateUser, deleteUser,
+  listAgents, listCustomers, listAllUsers,
+  createSession, getSession, deleteSession,
+  getAgentOrders,
 };
 
 module.exports = { DB };

@@ -143,14 +143,63 @@
   async function init() {
     const grid = $("#productGrid");
     if (grid) grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="e-ic">🍊</div>正在加载鲜橙…</div>`;
-    try { await Store.init(); } catch (e) {
+    try { await Store.initCustomer(); } catch (e) {
       if (grid) grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="e-ic">⚠</div>加载失败，请稍后刷新</div>`;
       return;
     }
     renderProducts();
     updateCount();
     renderCart();
+    updateAuthUI();
+    // 显示推荐人提示
+    showReferralBanner();
   }
 
-  global.App = { init, openCart, closeCart, renderCart, goCheckout, toast, onCartUpdate: null };
+  function updateAuthUI() {
+    const user = Store.Auth.getUser();
+    const navRight = $(".nav-right");
+    if (!navRight) return;
+    if (user) {
+      // 已登录：显示用户名 + 退出
+      navRight.innerHTML = `
+        <span class="nav-user">👤 ${user.name || user.phone.slice(-4)}</span>
+        <button class="btn btn-ghost btn-sm" onclick="App.logout()">退出</button>
+        <button class="cart-btn" onclick="App.openCart()">
+          <span>购物车</span>
+          <span class="cart-count hide" id="cartCount">0</span>
+        </button>`;
+    } else {
+      // 未登录：显示登录按钮
+      navRight.innerHTML = `
+        <a href="login.html" class="btn btn-ghost btn-sm">登录 / 注册</a>
+        <button class="cart-btn" onclick="App.openCart()">
+          <span>购物车</span>
+          <span class="cart-count hide" id="cartCount">0</span>
+        </button>`;
+    }
+    updateCount();
+  }
+
+  function showReferralBanner() {
+    const agent = Store.cache.referralAgent;
+    if (!agent) return;
+    // 在页面顶部公告下方插入推荐人提示
+    const topbar = $(".topbar");
+    if (!topbar) return;
+    let banner = document.getElementById("referralBanner");
+    if (banner) return; // 已存在
+    banner = document.createElement("div");
+    banner.id = "referralBanner";
+    banner.style.cssText = "background:var(--orange-50);border-bottom:1px solid var(--orange-100);padding:8px 0;text-align:center;font-size:14px;color:var(--orange-700)";
+    banner.innerHTML = `🤝 欢迎通过 <strong>${agent.name}</strong> 的推荐链接到店！`;
+    topbar.parentNode.insertBefore(banner, topbar.nextSibling);
+  }
+
+  async function logout() {
+    await Store.Auth.logout();
+    toast("已退出登录");
+    updateAuthUI();
+  }
+
+  global.App = { init, openCart, closeCart, renderCart, goCheckout, toast, onCartUpdate: null, updateAuthUI, logout };
 })(window);

@@ -29,6 +29,7 @@
     else if (state.view === "orders") renderOrders();
     else if (state.view === "inventory") renderInventory();
     else if (state.view === "customers") renderCustomers();
+    else if (state.view === "agents") renderAgents();
   }
 
   /* ---------- 概览 ---------- */
@@ -405,6 +406,167 @@
     });
   }
 
+  /* ---------- 代理管理 ---------- */
+  async function renderAgents() {
+    $("#viewRoot").innerHTML = `<div class="empty-state" style="padding:80px"><div class="e-ic">★</div>正在加载代理列表…</div>`;
+    let agents = [];
+    try {
+      agents = await Store.AgentAdmin.list();
+    } catch (e) {
+      $("#viewRoot").innerHTML = `<div class="empty-state" style="padding:80px"><div class="e-ic">⚠</div>${esc(e.message)}</div>`;
+      return;
+    }
+
+    const totalRevenue = agents.reduce((s, a) => s + (a.revenue || 0), 0);
+    const totalOrders = agents.reduce((s, a) => s + (a.orderCount || 0), 0);
+
+    $("#viewRoot").innerHTML = `
+      <div class="main-head">
+        <div><h1>代理管理</h1><div class="sub">管理合作伙伴账号与推荐链接，共 ${agents.length} 位代理</div></div>
+        <div class="acts"><button class="btn btn-primary btn-sm" id="addAgentBtn">+ 新增代理</button></div>
+      </div>
+
+      <div class="stat-grid" style="grid-template-columns:repeat(3,1fr)">
+        <div class="stat-card"><div class="s-top"><div class="s-ic green">★</div><span class="s-lbl">代理总数</span></div><div class="s-num">${agents.length}</div></div>
+        <div class="stat-card"><div class="s-top"><div class="s-ic orange">¥</div><span class="s-lbl">代理总成交额</span></div><div class="s-num">${Store.money(totalRevenue)}</div></div>
+        <div class="stat-card"><div class="s-top"><div class="s-ic blue">▤</div><span class="s-lbl">代理总订单</span></div><div class="s-num">${totalOrders}</div></div>
+      </div>
+
+      <div class="table-card" style="margin-top:24px">
+        <div class="tbl-scroll">
+          <table class="tbl">
+            <thead><tr>
+              <th>代理姓名</th><th>手机号</th><th>推荐码</th><th>推荐链接</th>
+              <th>订单数</th><th>成交额</th><th>状态</th><th>操作</th>
+            </tr></thead>
+            <tbody>
+            ${agents.length ? agents.map(a => `
+              <tr>
+                <td class="t-name">${esc(a.name)}</td>
+                <td class="nowrap">${a.phone}</td>
+                <td><span class="tag tag-green">${a.referralCode}</span></td>
+                <td><a href="${a.referralLink}" target="_blank" style="color:var(--green);font-size:12px">${esc(a.referralLink)}</a></td>
+                <td>${a.orderCount || 0}</td>
+                <td class="t-amt">${Store.money(a.revenue || 0)}</td>
+                <td><span class="status status-${a.status === "active" ? "paid" : "cancel"}">${a.status === "active" ? "正常" : "已停用"}</span></td>
+                <td><div class="row-act">
+                  <button class="icon-btn" title="详情" data-agent-detail="${a.id}">▶</button>
+                  <button class="icon-btn" title="编辑" data-agent-edit="${a.id}">✎</button>
+                  ${a.status === "active" ? `<button class="icon-btn" title="停用" data-agent-toggle="${a.id}" data-status="disabled">⏸</button>` : `<button class="icon-btn" title="启用" data-agent-toggle="${a.id}" data-status="active">▶</button>`}
+                </div></td>
+              </tr>`).join("") : `<tr><td colspan="8"><div class="empty-state"><div class="e-ic">★</div>暂无代理，点击右上角新增</div></td></tr>`}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+
+    $("#addAgentBtn").addEventListener("click", () => openAgentModal());
+    $$("[data-agent-detail]").forEach(b => b.addEventListener("click", () => openAgentDetail(b.dataset.agentDetail)));
+    $$("[data-agent-edit]").forEach(b => b.addEventListener("click", () => openAgentModal(b.dataset.agentEdit)));
+    $$("[data-agent-toggle]").forEach(b => b.addEventListener("click", async () => {
+      const status = b.dataset.status;
+      if (status === "disabled" && !confirm("确认停用该代理？停用后其推荐链接将失效")) return;
+      await Store.AgentAdmin.update(b.dataset.agentToggle, { status });
+      toast(status === "active" ? "已启用" : "已停用");
+      renderAgents();
+    }));
+  }
+
+  /* ---------- 新增/编辑代理弹窗 ---------- */
+  function openAgentModal(agentId) {
+    const isEdit = !!agentId;
+    const agent = isEdit ? Store.cache.agents.find(a => a.id === agentId) : null;
+    $("#modalBox").innerHTML = `
+      <div class="modal-head"><h3>${isEdit ? "编辑代理" : "新增代理"}</h3><button class="close-x" data-close>×</button></div>
+      <div class="modal-body">
+        ${isEdit ? `<div class="detail-row"><div class="d-k">推荐码</div><div class="d-v"><span class="tag tag-green">${agent.referralCode}</span></div></div>` : ""}
+        <div class="field" style="margin-top:8px"><label>代理姓名 <span class="req">*</span></label><input id="agentName" placeholder="请输入姓名" value="${isEdit ? esc(agent.name) : ""}" /></div>
+        <div class="field"><label>手机号 <span class="req">*</span></label><input id="agentPhone" type="tel" maxlength="11" placeholder="请输入手机号" value="${isEdit ? agent.phone : ""}" ${isEdit ? "" : ""} /></div>
+        <div class="field"><label>${isEdit ? "新密码（留空不改）" : "密码"} ${isEdit ? "" : '<span class="req">*</span>'}</label><input id="agentPassword" type="password" placeholder="${isEdit ? "留空不修改密码" : "至少6位"}" /></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost btn-sm" data-close>取消</button>
+        <button class="btn btn-primary btn-sm" id="saveAgent">${isEdit ? "保存修改" : "创建代理"}</button>
+      </div>`;
+    showModal();
+    $$("[data-close]").forEach(b => b.addEventListener("click", closeModal));
+    $("#saveAgent").addEventListener("click", async () => {
+      const name = $("#agentName").value.trim();
+      const phone = $("#agentPhone").value.trim();
+      const password = $("#agentPassword").value;
+      if (!name || !phone) { toast("请填写姓名和手机号", "warn"); return; }
+      if (!/^1\d{10}$/.test(phone)) { toast("手机号格式不正确", "warn"); return; }
+      if (!isEdit && password.length < 6) { toast("密码至少6位", "warn"); return; }
+      try {
+        if (isEdit) {
+          const patch = { name, phone };
+          if (password) patch.password = password;
+          await Store.AgentAdmin.update(agentId, patch);
+          toast("代理信息已更新");
+        } else {
+          await Store.AgentAdmin.create(name, phone, password);
+          toast("代理创建成功");
+        }
+        closeModal(); renderAgents();
+      } catch (e) { toast(e.message, "warn"); }
+    });
+  }
+
+  /* ---------- 代理详情弹窗 ---------- */
+  async function openAgentDetail(id) {
+    $("#modalBox").innerHTML = `<div class="modal-head"><h3>代理详情</h3></div><div class="modal-body"><div class="empty-state" style="padding:40px">加载中…</div></div>`;
+    showModal();
+    let data;
+    try {
+      data = await Store.AgentAdmin.detail(id);
+    } catch (e) {
+      $("#modalBox").innerHTML = `<div class="modal-head"><h3>代理详情</h3><button class="close-x" data-close>×</button></div><div class="modal-body">${esc(e.message)}</div>`;
+      $$("[data-close]").forEach(b => b.addEventListener("click", closeModal));
+      return;
+    }
+    const { agent, stats, orders } = data;
+    const fullLink = location.origin + agent.referralLink;
+    $("#modalBox").innerHTML = `
+      <div class="modal-head"><h3>代理详情</h3><button class="close-x" data-close>×</button></div>
+      <div class="modal-body">
+        <div class="detail-row"><div class="d-k">姓名</div><div class="d-v">${esc(agent.name)}</div></div>
+        <div class="detail-row"><div class="d-k">手机号</div><div class="d-v">${agent.phone}</div></div>
+        <div class="detail-row"><div class="d-k">推荐码</div><div class="d-v"><span class="tag tag-green">${agent.referralCode}</span></div></div>
+        <div class="detail-row"><div class="d-k">推荐链接</div><div class="d-v"><a href="${agent.referralLink}" target="_blank" style="color:var(--green);font-size:13px;word-break:break-all">${esc(fullLink)}</a></div></div>
+        <div class="detail-row"><div class="d-k">状态</div><div class="d-v"><span class="status status-${agent.status === "active" ? "paid" : "cancel"}">${agent.status === "active" ? "正常" : "已停用"}</span></div></div>
+        <div class="detail-row"><div class="d-k">创建时间</div><div class="d-v">${Store.fmtTime(agent.createdAt)}</div></div>
+        <div class="detail-row" style="align-items:flex-start"><div class="d-k">业绩</div>
+          <div class="d-v" style="font-weight:400">
+            <div class="detail-row"><span>总订单</span><span>${stats.orderCount} 单</span></div>
+            <div class="detail-row"><span>已支付</span><span>${stats.paidOrders} 单</span></div>
+            <div class="detail-row"><span>成交额</span><span class="t-amt">${Store.money(stats.revenue)}</span></div>
+          </div>
+        </div>
+        ${orders.length ? `
+        <div style="margin-top:16px">
+          <h4 style="font-size:14px;margin:0 0 10px;color:var(--ink-soft)">最近订单</h4>
+          <div class="tbl-scroll" style="max-height:300px;overflow-y:auto">
+            <table class="tbl">
+              <thead><tr><th>订单号</th><th>客户</th><th>金额</th><th>状态</th></tr></thead>
+              <tbody>
+                ${orders.map(o => `<tr>
+                  <td><strong>${o.id}</strong></td>
+                  <td class="t-name">${esc(o.customer.name)}<br><span class="muted" style="font-size:12px">${o.customer.phone}</span></td>
+                  <td class="t-amt">${Store.money(o.totalAmount)}</td>
+                  <td><span class="status status-${o.shipStatus}">${Store.shipLabel(o.shipStatus)}</span></td>
+                </tr>`).join("")}
+              </tbody>
+            </table>
+          </div>
+        </div>` : ""}
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost btn-sm" data-close>关闭</button>
+      </div>`;
+    showModal();
+    $$("[data-close]").forEach(b => b.addEventListener("click", closeModal));
+  }
+
   /* ---------- 模态控制 ---------- */
   function showModal() { $("#modalBg").classList.add("show"); }
   function closeModal() { $("#modalBg").classList.remove("show"); }
@@ -413,9 +575,21 @@
     $$(".aside-nav a[data-view]").forEach(a => a.addEventListener("click", () => switchView(a.dataset.view)));
     $("#modalBg").addEventListener("click", e => { if (e.target.id === "modalBg") closeModal(); });
     document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
-    // 先显示加载态，再异步拉取数据
+    // 先显示加载态，再异步拉取数据（init 会检查登录状态）
     $("#viewRoot").innerHTML = `<div class="empty-state" style="padding:80px"><div class="e-ic">🍊</div>正在加载后台数据…</div>`;
-    Store.init().then(render).catch(() => {
+    Store.init().then(() => {
+      // 显示用户信息
+      const user = Store.Auth.getUser();
+      if (user) {
+        $("#adminUserInfo").innerHTML = `${esc(user.name)} · ${user.role === "admin" ? "超级管理员" : user.role === "agent" ? "代理" : "顾客"}<br><a href="javascript:void(0)" id="adminLogout" style="color:var(--orange-700);font-size:13px">退出登录</a>`;
+        const logoutBtn = $("#adminLogout");
+        if (logoutBtn) logoutBtn.addEventListener("click", async () => {
+          await Store.Auth.logout();
+          location.href = "login.html";
+        });
+      }
+      render();
+    }).catch(() => {
       $("#viewRoot").innerHTML = `<div class="empty-state" style="padding:80px"><div class="e-ic">⚠</div>数据加载失败，请稍后刷新</div>`;
     });
   }
