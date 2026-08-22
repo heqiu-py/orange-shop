@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>管理后台 · 橙园直供</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+
+<div class="admin">
+  <!-- 侧边栏 -->
+  <aside class="aside" id="aside">
+    <a class="brand" href="index.html">
+      <div class="mark"></div>
+      <div><div class="name">橙园直供</div><div class="sub">管理后台</div></div>
+    </a>
+    <nav class="aside-nav">
+      <a class="active" data-view="overview"><span class="a-ic">▦</span>数据概览</a>
+      <a data-view="orders"><span class="a-ic">▤</span>订单统计</a>
+      <a data-view="inventory"><span class="a-ic">▦</span>库存管理</a>
+      <a data-view="customers"><span class="a-ic">☺</span>客户管理</a>
+      <a href="index.html"><span class="a-ic">↩</span>返回店铺</a>
+    </nav>
+    <div class="aside-foot">本地预览版 · 数据存于浏览器<br>后续可对接真实后端与支付</div>
+  </aside>
+
+  <!-- 主区 -->
+  <main class="main">
+    <div id="viewRoot"><!-- 视图渲染区 --></div>
+  </main>
+</div>
+
+<!-- 详情/操作 模态 -->
+<div class="modal-bg" id="modalBg">
+  <div class="modal" id="modalBox"><!-- JS --></div>
+</div>
+
+<!-- toast -->
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script src="assets/js/store.js"></script>
+<script src="assets/js/admin.js"></script>
+<script>Admin.init();</script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+# Render 部署蓝图（https://render.com/docs/blueprint-spec）
+# 把项目推到 GitHub 后，在 Render → New → Blueprint 选此仓库即可
+services:
+  - type: web
+    name: chengyuan-orange-shop
+    runtime: node
+    region: singapore        # 离国内较近；可按需调整
+    plan: free                # 免费版（15分钟无访问会休眠，下次访问自动唤醒）
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      # 关键：在这里填入数据库连接串（Neon / Render Postgres / Supabase 均可）
+      # 获取方式见部署说明。不填则回退为本地文件存储（Render 免费版会丢数据，务必填写）
+      - key: DATABASE_URL
+        sync: false
+      - key: PORT
+        value: 10000           # Render 默认要求监听 0.0.0.0:10000，代码已用 process.env.PORT

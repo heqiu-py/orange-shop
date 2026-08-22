@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>确认订单 · 橙园直供</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+
+<div class="topbar"><div class="wrap"><span class="dot"></span><span>当季鲜橙 · 现摘现发 · 48小时内产地直发 · 满3箱包邮</span></div></div>
+
+<header class="nav">
+  <div class="wrap between">
+    <a class="brand" href="index.html">
+      <div class="mark"></div>
+      <div><div class="name">橙园直供</div><div class="sub">NAVEL ORANGE</div></div>
+    </a>
+    <nav class="nav-links">
+      <a href="index.html">首页</a>
+      <a href="index.html#products">鲜橙选购</a>
+      <a href="index.html#about">庄园故事</a>
+      <a href="admin.html">管理后台</a>
+    </nav>
+    <div class="nav-right">
+      <button class="cart-btn" onclick="location.href='order.html'">
+        <span>购物车</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="checkout-wrap">
+  <div class="wrap">
+    <div id="checkoutRoot"><!-- JS 渲染 --></div>
+  </div>
+</main>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script src="assets/js/store.js"></script>
+<script>
+(function(){
+  const $ = s => document.querySelector(s);
+  const root = $("#checkoutRoot");
+  const cart = Store.getCart();
+
+  function toast(m){ const w=$("#toastWrap"); const e=document.createElement("div"); e.className="toast ok"; e.textContent=m; w.appendChild(e); setTimeout(()=>e.remove(),2200); }
+
+  function renderEmpty(){
+    root.innerHTML = `
+      <div class="success-box">
+        <div class="success-ic">🛒</div>
+        <h2>购物车是空的</h2>
+        <p>先去挑选心仪的鲜橙吧</p>
+        <a href="index.html#products" class="btn btn-primary" style="margin-top:8px">去选购</a>
+      </div>`;
+  }
+
+  function renderForm(){
+    const total = cart.reduce((s,i)=>s+i.price*i.qty,0);
+    const kg = cart.reduce((s,i)=> s + (i.spec.indexOf("40")>-1?40:i.spec.indexOf("20")>-1?20:10)*i.qty, 0);
+    root.innerHTML = `
+      <div class="main-head" style="margin-bottom:24px">
+        <div><h1>确认订单</h1><div class="sub">填写收货信息，提交后我们会尽快为您现摘发货</div></div>
+      </div>
+      <div class="checkout-grid">
+        <div>
+          <div class="panel">
+            <h3>① 收货信息</h3>
+            <p class="p-sub">请准确填写，物流发货将以此为准</p>
+            <form id="orderForm" novalidate>
+              <div class="field-row">
+                <div class="field"><label>收货人姓名 <span class="req">*</span></label><input name="name" placeholder="请输入收货人姓名" /></div>
+                <div class="field"><label>联系电话 <span class="req">*</span></label><input name="phone" placeholder="11位手机号" maxlength="11" /></div>
+              </div>
+              <div class="field-row-3">
+                <div class="field"><label>省份 <span class="req">*</span></label>
+                  <select name="province" id="fProvince"><option value="">请选择</option>${Store.PROVINCES.map(p=>`<option>${p}</option>`).join("")}</select>
+                </div>
+                <div class="field"><label>城市</label><input name="city" placeholder="如：广州市" /></div>
+                <div class="field"><label>区/县</label><input name="district" placeholder="如：天河区" /></div>
+              </div>
+              <div class="field"><label>详细地址 <span class="req">*</span></label><textarea name="address" rows="2" placeholder="街道、门牌号、小区、楼栋单元室"></textarea></div>
+              <div class="field-row">
+                <div class="field"><label>订单来源</label>
+                  <select name="source">${Store.SOURCES.map(s=>`<option>${s}</option>`).join("")}</select>
+                </div>
+                <div class="field"><label>备注（选填）</label><input name="remark" placeholder="如：周末送达、包装要求" /></div>
+              </div>
+            </form>
+          </div>
+
+          <div class="panel">
+            <h3>② 支付方式</h3>
+            <p class="p-sub">当前为预览版，支付功能后续对接</p>
+            <div class="pay-note">
+              本站暂未开通在线支付。提交订单后，客服会通过微信与您确认并完成收款，确认收款后48小时内现摘发货。
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="panel">
+            <h3>订单明细</h3>
+            <p class="p-sub">共 ${cart.length} 种商品 · 约 ${kg} 斤</p>
+            <div class="summary-lines">
+              ${cart.map(i=>`<div class="summary-line"><span class="s-name">${i.name}（${i.spec}）×${i.qty}</span><span class="s-val">${Store.money(i.price*i.qty)}</span></div>`).join("")}
+            </div>
+            <div class="summary-line"><span class="s-name">运费</span><span class="s-val">${kg>=30?"包邮":"到付 / 满3箱包邮"}</span></div>
+            <div class="summary-total"><span class="t-lbl">合计</span><span class="t-val">${Store.money(total)}</span></div>
+            <button class="btn btn-primary btn-block" id="submitBtn" style="margin-top:18px">提交订单</button>
+            <a href="index.html" class="btn btn-ghost btn-block" style="margin-top:10px">返回继续选购</a>
+          </div>
+        </div>
+      </div>`;
+
+    $("#submitBtn").addEventListener("click", submit);
+  }
+
+  function renderSuccess(order){
+    root.innerHTML = `
+      <div class="success-box">
+        <div class="success-ic">✓</div>
+        <h2>订单提交成功！</h2>
+        <p>感谢您的支持，客服将通过微信与您联系确认收款。</p>
+        <p>请妥善保存您的订单号，便于查询发货进度。</p>
+        <div class="order-no">${order.id}</div>
+        <div class="field-row" style="max-width:380px;margin:0 auto 8px">
+          <a href="index.html" class="btn btn-ghost">返回首页</a>
+          <a href="index.html#products" class="btn btn-primary">继续选购</a>
+        </div>
+      </div>`;
+  }
+
+  function validate(f){
+    const req = ["name","phone","province","address"];
+    let ok = true, firstErr = null;
+    req.forEach(k=>{
+      const el = f.querySelector(`[name="${k}"]`);
+      const v = (el.value||"").trim();
+      el.closest(".field").classList.toggle("error", !v);
+      if(!v && !firstErr) firstErr = el;
+      if(!v) ok = false;
+    });
+    const phone = f.phone.value.trim();
+    if(phone && !/^1\d{10}$/.test(phone)){
+      f.phone.closest(".field").classList.add("error");
+      toast("请输入正确的11位手机号"); ok=false;
+    }
+    if(firstErr) firstErr.focus();
+    return ok;
+  }
+
+  async function submit(){
+    const f = $("#orderForm");
+    if(!validate(f)){ toast("请补全必填信息"); return; }
+    const form = {
+      name: f.name.value.trim(), phone: f.phone.value.trim(),
+      province: f.province.value, city: f.city.value.trim(), district: f.district.value.trim(),
+      address: f.address.value.trim(), source: f.source.value, remark: f.remark.value.trim()
+    };
+    const btn = $("#submitBtn");
+    if(btn){ btn.disabled = true; btn.textContent = "提交中…"; }
+    try {
+      const order = await Store.placeOrder(form);
+      if(!order){ toast("购物车为空"); if(btn){ btn.disabled=false; btn.textContent="提交订单"; } return; }
+      renderSuccess(order);
+      window.scrollTo({top:0, behavior:"smooth"});
+    } catch(e){
+      toast("提交失败：" + (e.message||"请重试")); if(btn){ btn.disabled=false; btn.textContent="提交订单"; }
+    }
+  }
+
+  // 先加载数据（省/市/来源下拉），再渲染表单
+  if(!cart.length){ renderEmpty(); }
+  else {
+    Store.init().then(renderForm).catch(()=>{
+      root.innerHTML = `<div class="empty-state" style="padding:80px"><div class="e-ic">⚠</div>数据加载失败，请稍后刷新</div>`;
+    });
+  }
+})();
+</script>
+</body>
+</html>

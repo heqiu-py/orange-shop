@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>橙园直供 · 脐橙庄园 | 当季鲜橙 产地直发</title>
+<meta name="description" content="自家脐橙庄园，年产四十万斤，每年11月至次年1月当季鲜果产地直发，皮薄多汁、现摘现发。" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+
+<!-- 顶部公告 -->
+<div class="topbar">
+  <div class="wrap">
+    <span class="dot"></span>
+    <span>当季鲜橙 · 现摘现发 · 48小时内产地直发 · 满3箱包邮</span>
+  </div>
+</div>
+
+<!-- 导航 -->
+<header class="nav">
+  <div class="wrap between">
+    <a class="brand" href="index.html">
+      <div class="mark"></div>
+      <div>
+        <div class="name">橙园直供</div>
+        <div class="sub">NAVEL ORANGE</div>
+      </div>
+    </a>
+    <nav class="nav-links">
+      <a href="index.html">首页</a>
+      <a href="#products">鲜橙选购</a>
+      <a href="#about">庄园故事</a>
+      <a href="#how">如何下单</a>
+      <a href="admin.html">管理后台</a>
+    </nav>
+    <div class="nav-right">
+      <button class="cart-btn" onclick="App.openCart()">
+        <span>购物车</span>
+        <span class="cart-count hide" id="cartCount">0</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="wrap">
+    <div class="hero-text">
+      <span class="hero-eyebrow"><span class="dot" style="background:var(--orange);width:6px;height:6px;border-radius:50%;display:inline-block"></span> 当季限定 · 11月–次年1月</span>
+      <h1>自家脐橙庄园<br><em>现摘现发</em>的鲜甜</h1>
+      <p class="lead">年产量四十万斤，山坡向阳种植，自然成熟不催熟。从枝头到餐桌，48小时内产地直发，锁住那一口爆汁的清甜。</p>
+      <div class="hero-cta">
+        <a href="#products" class="btn btn-primary">立即选购鲜橙</a>
+        <a href="#about" class="btn btn-ghost">了解庄园</a>
+      </div>
+      <div class="hero-stats">
+        <div><div class="num">40万斤</div><div class="lbl">年产鲜果</div></div>
+        <div><div class="num">48h</div><div class="lbl">产地直发</div></div>
+        <div><div class="num">14°+</div><div class="lbl">糖度均测</div></div>
+      </div>
+    </div>
+    <div class="hero-visual">
+      <div class="hero-img" style="background-image:url('assets/images/hero.jpg')"></div>
+      <div class="hero-badge b1">
+        <div class="b-ic" style="background:var(--green-50);color:var(--green)">✓</div>
+        <div><strong>现摘现发</strong><span>不库存不催熟</span></div>
+      </div>
+      <div class="hero-badge b2">
+        <div class="b-ic" style="background:var(--orange-50);color:var(--orange-700)">★</div>
+        <div><strong>14°+ 糖度</strong><span>果径筛分严选</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 优势 -->
+<section class="section section-soft" id="how">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-kicker">为什么选我们</div>
+      <h2>从枝头到餐桌，只做放心鲜橙</h2>
+      <p>自家果园自种自销，没有中间环节，每一颗橙子都经手工筛选、产地直发。</p>
+    </div>
+    <div class="feature-grid">
+      <div class="feature"><div class="f-ic">🌳</div><h3>自家果园</h3><p>山坡向阳种植，农家自管，自然成熟，品质可溯。</p></div>
+      <div class="feature"><div class="f-ic">✋</div><h3>手工筛选</h3><p>按果径分级，剔除次果，颗颗达标才装箱发货。</p></div>
+      <div class="feature"><div class="f-ic">🚚</div><h3>产地直发</h3><p>下单后48小时内现摘发货，冷链/顺丰直达，新鲜不减。</p></div>
+      <div class="feature"><div class="f-ic">🎁</div><h3>送礼体面</h3><p>精美礼盒、烫金提袋、附手写卡片，节日送礼有面。</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 商品 -->
+<section class="section" id="products">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="sec-kicker">当季鲜橙</div>
+      <h2>庄园鲜橙选购</h2>
+      <p>特级果王、一级精选、精美礼盒，满足自留与送礼所需。</p>
+    </div>
+    <div class="product-grid" id="productGrid"><!-- JS 渲染 --></div>
+  </div>
+</section>
+
+<!-- 关于庄园 -->
+<section class="section section-soft" id="about">
+  <div class="wrap about-grid">
+    <div class="about-img" style="background-image:url('assets/images/about.jpg')"></div>
+    <div class="about-text">
+      <div class="sec-kicker">庄园故事</div>
+      <h2>三代种橙，只为一口清甜</h2>
+      <p>我们家的脐橙庄园坐落在向阳山坡，三代人守着这片果园。每年霜降后开园，11月到次年1月是脐橙糖度最佳期，我们坚持自然成熟、不催熟、不打蜡。</p>
+      <p>从枝头到餐桌，我们去掉中间商，让利给每一位顾客——同样的品质，更实在的价格；同样的价格，更鲜的果子。</p>
+      <ul class="check-list">
+        <li><span class="c-ic">✓</span><span><strong>自然成熟</strong>：坚持树上自然糖化，不早采不催熟。</span></li>
+        <li><span class="c-ic">✓</span><span><strong>严选分级</strong>：按果径与糖度分级，剔除次果。</span></li>
+        <li><span class="c-ic">✓</span><span><strong>产地直发</strong>：48小时内现摘发货，新鲜直达。</span></li>
+        <li><span class="c-ic">✓</span><span><strong>坏果包赔</strong>：运输坏果，拍照即补发。</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 页脚 -->
+<footer class="footer">
+  <div class="wrap">
+    <div class="f-top">
+      <div>
+        <a class="brand" href="index.html">
+          <div class="mark"></div>
+          <div><div class="name">橙园直供</div><div class="sub">NAVEL ORANGE</div></div>
+        </a>
+        <p class="f-desc">自家脐橙庄园，年产四十万斤，每年11月至次年1月当季鲜果产地直发。现摘现发、坏果包赔，让鲜甜直达。</p>
+      </div>
+      <div class="f-col">
+        <h4>购物</h4>
+        <a href="#products">鲜橙选购</a>
+        <a href="#how">下单流程</a>
+        <a href="#about">庄园故事</a>
+      </div>
+      <div class="f-col">
+        <h4>服务</h4>
+        <a href="javascript:void(0)">坏果包赔</a>
+        <a href="javascript:void(0)">配送说明</a>
+        <a href="javascript:void(0)">联系客服</a>
+      </div>
+      <div class="f-col">
+        <h4>关于</h4>
+        <a href="admin.html">管理后台</a>
+        <a href="javascript:void(0)">微信订购</a>
+        <a href="javascript:void(0)">合作咨询</a>
+      </div>
+    </div>
+    <div class="f-bottom">
+      <span>© 2026 橙园直供 · 自家脐橙庄园</span>
+      <span>产地直发 · 坏果包赔</span>
+    </div>
+  </div>
+</footer>
+
+<!-- 购物车抽屉 -->
+<div class="overlay" id="overlay" onclick="App.closeCart()"></div>
+<aside class="drawer" id="cartDrawer">
+  <div class="drawer-head">
+    <h3>购物车</h3>
+    <button class="close-x" onclick="App.closeCart()">×</button>
+  </div>
+  <div class="drawer-body" id="cartBody"><!-- JS --></div>
+  <div class="drawer-foot" id="cartFoot"><!-- JS --></div>
+</aside>
+
+<!-- 加购弹窗 -->
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script src="assets/js/store.js"></script>
+<script src="assets/js/app.js"></script>
+<script>App.init();</script>
+</body>
+</html>
