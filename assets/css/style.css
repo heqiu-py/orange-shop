@@ -472,3 +472,111 @@ table.tbl .t-addr{ max-width:220px; color:var(--ink-soft); font-size:13px; }
   .hero-stats{ gap:20px; flex-wrap:wrap; }
   .toolbar .grow{ width:100%; }
 }
+
+/* ============================================================
+   微信内嵌 / 移动端增强
+   ============================================================ */
+
+/* iPhone 安全区（刘海屏） */
+@supports (padding:env(safe-area-inset-top)){
+  .topbar .wrap{ height:calc(38px + env(safe-area-inset-top)); padding-top:env(safe-area-inset-top); }
+  .nav .wrap{ height:calc(70px + env(safe-area-inset-top)); padding-top:env(safe-area-inset-top); }
+  .footer .f-bottom{ padding-bottom:calc(24px + env(safe-area-inset-bottom)); }
+  .mobile-bottom-bar{ padding-bottom:env(safe-area-inset-bottom); }
+}
+
+/* 移动端底部固定栏（购物车/结算） */
+.mobile-bottom-bar{
+  display:none;
+  position:fixed; bottom:0; left:0; right:0; z-index:85;
+  background:rgba(255,255,255,.96); backdrop-filter:blur(10px);
+  border-top:1px solid var(--line); box-shadow:0 -4px 20px rgba(34,30,24,.08);
+  padding:10px 16px; align-items:center; gap:12px;
+}
+.mobile-bottom-bar .mbb-cart{ position:relative; width:44px; height:44px; border-radius:var(--r-sm); background:var(--green-50); color:var(--green); display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
+.mobile-bottom-bar .mbb-cart .cart-count{ position:absolute; top:-4px; right:-4px; min-width:18px; height:18px; padding:0 4px; border-radius:50%; background:var(--orange); color:#fff; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center; }
+.mobile-bottom-bar .mbb-total{ flex:1; }
+.mobile-bottom-bar .mbb-total .lbl{ font-size:11px; color:var(--muted); }
+.mobile-bottom-bar .mbb-total .val{ font-family:var(--font-serif); font-size:20px; font-weight:700; color:var(--orange-700); }
+.mobile-bottom-bar .btn{ flex-shrink:0; padding:0 28px; }
+
+/* 微信浏览器内：隐藏导航栏菜单提示 */
+body.in-wechat .nav .wrap{ height:calc(56px + env(safe-area-inset-top)); }
+body.in-wechat .brand .name{ font-size:19px; }
+body.in-wechat .nav-links{ display:none; }
+
+/* 微信打开引导（非微信浏览器时提示"在微信中打开更佳"） */
+.wechat-hint{
+  display:none;
+  background:var(--green-50); color:var(--green); font-size:13px;
+  padding:8px 16px; text-align:center; border-bottom:1px solid var(--line);
+}
+body.in-wechat .wechat-hint{ display:none; }
+
+/* 移动端：商品卡更紧凑 */
+@media (max-width:680px){
+  .pcard .ph-body{ padding:16px; }
+  .pcard .price{ font-size:22px; }
+  .section{ padding:56px 0; }
+  .sec-head{ margin-bottom:36px; }
+  .hero .wrap{ padding-top:28px; padding-bottom:28px; }
+  .hero h1{ font-size:32px; }
+  .hero p.lead{ font-size:16px; }
+  .hero-badge{ display:none; }
+  /* 底部固定栏显示 */
+  .mobile-bottom-bar.show{ display:flex; }
+  /* 给底部留空间 */
+  body.has-bottom-bar{ padding-bottom:72px; }
+  /* 购物车抽屉全宽 */
+  .drawer{ width:100%; }
+  /* 表单输入更大 */
+  .field input,.field select,.field textarea{ height:48px; font-size:16px; /* 防止 iOS 缩放 */ }
+  .btn{ height:48px; }
+  /* 订单表格横向滚动更顺滑 */
+  .tbl-scroll{ -webkit-overflow-scrolling:touch; }
+}
+
+/* 微信支付引导 */
+.pay-guide{ background:var(--paper); border:1px solid var(--line); border-radius:var(--r); padding:28px; text-align:center; }
+.pay-guide .pg-qr{ width:200px; height:200px; margin:0 auto 16px; border-radius:var(--r); overflow:hidden; background:var(--cream-2); }
+.pay-guide .pg-qr img{ width:100%; height:100%; object-fit:cover; }
+.pay-guide .pg-steps{ text-align:left; margin:18px 0; padding:16px 20px; background:var(--cream); border-radius:var(--r-sm); }
+.pay-guide .pg-steps li{ padding:6px 0; font-size:14px; color:var(--ink-soft); display:flex; gap:10px; align-items:flex-start; }
+.pay-guide .pg-steps .step-num{ width:22px; height:22px; border-radius:50%; background:var(--green); color:#fff; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.pay-guide .pg-actions{ display:flex; gap:10px; justify-content:center; margin-top:16px; flex-wrap:wrap; }
+
+/* 复制按钮 */
+.copy-btn{ display:inline-flex; align-items:center; gap:6px; padding:6px 14px; border-radius:var(--r-pill); background:var(--green-50); color:var(--green); font-size:13px; font-weight:600; cursor:pointer; }
+.copy-btn:hover{ background:var(--green); color:#fff; }
+
+/* 分享页 */
+.share-page{ min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; background:linear-gradient(180deg, var(--cream) 0%, var(--cream-2) 100%); padding:40px 24px; }
+.share-card{ background:var(--paper); border-radius:var(--r-lg); box-shadow:var(--shadow-lg); overflow:hidden; max-width:380px; width:100%; }
+.share-card .sc-hero{ aspect-ratio:4/3; background-size:cover; background-position:center; }
+.share-card .sc-content{ padding:28px 24px; text-align:center; }
+.share-card h2{ font-family:var(--font-serif); color:var(--green); font-size:24px; margin-bottom:8px; }
+.share-card .sc-desc{ color:var(--ink-soft); font-size:14px; margin-bottom:20px; }
+.share-card .sc-qr{ width:180px; height:180px; margin:0 auto 16px; border-radius:var(--r); overflow:hidden; border:1px solid var(--line); }
+.share-card .sc-qr img{ width:100%; height:100%; }
+.share-card .sc-qr-hint{ font-size:13px; color:var(--muted); }
+.share-card .sc-btn{ margin-top:20px; }
+
+/* 移动端导航简化（汉堡菜单） */
+.mobile-menu-btn{ display:none; width:40px; height:40px; border-radius:var(--r-sm); border:1px solid var(--line); background:#fff; font-size:18px; color:var(--ink); align-items:center; justify-content:center; }
+@media (max-width:680px){
+  .mobile-menu-btn{ display:flex; }
+}
+
+/* 客服浮窗 */
+.service-fab{
+  position:fixed; bottom:20px; right:20px; z-index:86;
+  width:52px; height:52px; border-radius:50%;
+  background:var(--green); color:#fff; display:flex; align-items:center; justify-content:center;
+  font-size:22px; box-shadow:0 6px 20px -4px rgba(31,74,46,.4); cursor:pointer;
+  transition:transform .2s;
+}
+.service-fab:hover{ transform:scale(1.08); }
+body.has-bottom-bar .service-fab{ bottom:80px; }
+@media (max-width:680px){
+  body.has-bottom-bar .service-fab{ bottom:84px; right:16px; width:46px; height:46px; font-size:19px; }
+}

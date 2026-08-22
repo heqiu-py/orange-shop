@@ -75,9 +75,13 @@
   function updateCount() {
     const cart = Store.getCart();
     const el = $("#cartCount");
-    if (!el) return;
-    el.textContent = cart.reduce((s, i) => s + i.qty, 0);
-    el.classList.toggle("hide", cart.length === 0);
+    const count = cart.reduce((s, i) => s + i.qty, 0);
+    if (el) { el.textContent = count; el.classList.toggle("hide", count === 0); }
+    // 同步移动端底部栏
+    if (App.onCartUpdate) {
+      const total = cart.reduce((s, i) => s + i.price * i.qty, 0);
+      App.onCartUpdate(count, Store.money(total));
+    }
   }
 
   function renderCart() {
@@ -117,7 +121,7 @@
         <span>合计</span>
         <span class="total">${Store.money(t)}</span>
       </div>
-      <button class="btn btn-primary btn-block" onclick="location.href='order.html'">去结算</button>`;
+      <button class="btn btn-primary btn-block" onclick="App.goCheckout()">去结算</button>`;
   }
 
   function openCart() {
@@ -128,6 +132,12 @@
   function closeCart() {
     $("#overlay").classList.remove("show");
     $("#cartDrawer").classList.remove("show");
+  }
+
+  function goCheckout() {
+    const cart = Store.getCart();
+    if (!cart.length) { toast("购物车是空的，先挑些鲜橙吧 🍊", "warn"); return; }
+    location.href = "order.html";
   }
 
   async function init() {
@@ -142,5 +152,5 @@
     renderCart();
   }
 
-  global.App = { init, openCart, closeCart, renderCart, toast };
+  global.App = { init, openCart, closeCart, renderCart, goCheckout, toast, onCartUpdate: null };
 })(window);

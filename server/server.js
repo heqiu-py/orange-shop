@@ -5,6 +5,7 @@
    ============================================================ */
 const express = require("express");
 const path = require("path");
+const QRCode = require("qrcode");
 const { DB } = require("./db");
 
 const app = express();
@@ -220,6 +221,28 @@ app.post("/api/admin/reset", async (req, res) => {
   await DB.reset();
   res.json({ ok: true, msg: "已重置为示例数据" });
 });
+
+/* ---------- QR 码生成 ---------- */
+app.get("/api/qrcode", async (req, res) => {
+  const text = req.query.text;
+  if (!text) return res.status(400).json({ error: "缺少 text 参数" });
+  try {
+    const png = await QRCode.toBuffer(text, { width: 300, margin: 1, color: { dark: "#1F4A2E", light: "#FFFFFF" } });
+    res.setHeader("Content-Type", "image/png");
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    res.send(png);
+  } catch (e) { res.status(500).json({ error: "QR生成失败" }); }
+});
+
+/* ---------- 站点配置（可后续扩展为数据库存储） ---------- */
+const SITE_CONFIG = {
+  shopName: "橙园直供",
+  wechatId: "",        // 店主微信号（用户后续填入）
+  customerService: "", // 客服微信二维码图片URL（用户后续上传）
+  announcement: "当季鲜橙 · 现摘现发 · 48小时内产地直发 · 满3箱包邮",
+  freeShippingThreshold: 3, // 满3箱包邮
+};
+app.get("/api/config", (req, res) => res.json(SITE_CONFIG));
 
 /* ---------- 健康检查 ---------- */
 app.get("/api/health", (req, res) => res.json({ ok: true, time: Date.now() }));
